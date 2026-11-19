@@ -244,9 +244,11 @@ fn svg_text_is_drawn_or_reported() {
         .pixels()
         .filter(|p| p.0[3] > 0)
         .count();
+    // A font is bundled, so text must render on every platform.
     assert!(
-        inked > 50 || dec.notes.iter().any(|n| n.contains("text")),
-        "text vanished silently"
+        inked > 50,
+        "text vanished: {inked} inked pixels, notes {:?}",
+        dec.notes
     );
 }
 

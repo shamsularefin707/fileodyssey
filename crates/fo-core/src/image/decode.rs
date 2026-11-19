@@ -254,8 +254,13 @@ fn collect_frames(frames: image::Frames<'_>) -> Result<Vec<Frame>, ToolError> {
     Ok(out)
 }
 
+/// DejaVu Sans (Bitstream Vera licence, see assets/fonts/DejaVu-LICENSE.txt).
+const BUNDLED_FONT: &[u8] = include_bytes!("../../assets/fonts/DejaVuSans.ttf");
+const BUNDLED_FAMILY: &str = "DejaVu Sans";
+
 fn decode_svg(path: &Path) -> Result<Decoded, ToolError> {
     use resvg::{tiny_skia, usvg};
+    use usvg::fontdb;
     let data = std::fs::read(path).map_err(unreadable)?;
     let mut opts = usvg::Options {
         resources_dir: path.parent().map(|p| p.to_path_buf()),
@@ -265,7 +270,20 @@ fn decode_svg(path: &Path) -> Result<Decoded, ToolError> {
     fonts.load_system_fonts();
     #[cfg(target_os = "android")]
     fonts.load_fonts_dir("/system/fonts");
-    let no_fonts = fonts.is_empty();
+    // A bundled font backs every generic family, so text renders even when the
+    // drawing's default ("Times New Roman") or requested font isn't installed.
+    fonts.load_font_data(BUNDLED_FONT.to_vec());
+    for set in [
+        fontdb::Database::set_serif_family,
+        fontdb::Database::set_sans_serif_family,
+        fontdb::Database::set_cursive_family,
+        fontdb::Database::set_fantasy_family,
+        fontdb::Database::set_monospace_family,
+    ] {
+        set(fonts, BUNDLED_FAMILY);
+    }
+    opts.font_family = BUNDLED_FAMILY.to_owned();
+    let no_fonts = opts.fontdb.is_empty();
     let tree = usvg::Tree::from_data(&data, &opts).map_err(unreadable)?;
     let size = tree.size().to_int_size();
     check_size(size.width(), size.height())?;
