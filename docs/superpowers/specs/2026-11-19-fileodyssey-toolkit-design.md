@@ -1,9 +1,9 @@
-# FileForge Native — Offline File & Image Toolkit (Design)
+# FileOdyssey — Offline File & Image Toolkit (Design)
 
 **Date:** 2026-11-19
 **Owner:** Arefin (shamsularefin707)
-**Status:** Draft for approval
-**Home:** a NEW GitHub repo (name proposed: `fileforge`). The existing
+**Status:** Approved 2026-11-19
+**Home:** a NEW GitHub repo `fileodyssey`; product name **FileOdyssey** [decided]. The existing
 `file-compression-and-converter` web app repo is left completely untouched.
 
 Markers used below: **[decided]** = Arefin decided it in conversation.
@@ -14,7 +14,7 @@ whoever builds it.
 
 ## 1. Intent — what and why
 
-FileForge today is a React/Vite web app on Vercel with 18 conversion tools.
+The current app, FileForge, is a React/Vite web app on Vercel with 18 conversion tools.
 Arefin wants a different product: **one installable, standalone app that is
 a complete file and image toolkit**, instead of "yet another online
 converter."
@@ -102,13 +102,13 @@ isn't offline).
 Cargo workspace in the new repo:
 
 ```
-fileforge/
+fileodyssey/
   crates/
-    ff-core/        # pure Rust engines, no UI; all conversion/compression logic
+    fo-core/        # pure Rust engines, no UI; all conversion/compression logic
                     #   + the fidelity report types. Fully unit-testable on CI.
-    ff-app/         # Tauri 2 app (src-tauri): commands, file dialogs, job queue,
+    fo-app/         # Tauri 2 app (src-tauri): commands, file dialogs, job queue,
                     #   platform glue, LibreOffice detection, updater
-    ff-ui/          # Leptos (client-side rendered, built with Trunk) frontend
+    fo-ui/          # Leptos (client-side rendered, built with Trunk) frontend
   plugins/
     tauri-plugin-docscan/   # Android-only Kotlin plugin wrapping ML Kit
                             #   Document Scanner
@@ -118,7 +118,7 @@ fileforge/
   .github/workflows/        # CI + release builds
 ```
 
-Rule: **every engine lives in `ff-core`, behind one trait**, so the UI never
+Rule: **every engine lives in `fo-core`, behind one trait**, so the UI never
 knows which library did the work:
 
 ```rust
@@ -142,7 +142,7 @@ can be cancelled. **[proposal]**
 | Document conversion | **pandoc.wasm 3.9+** (official WASM build), run inside Rust via **wasmtime** (WASI) | The same engine on desktop and Android. About 58 MB uncompressed, ~16 MB compressed. Fallback if wasmtime on Android is a problem: run it in the webview through pandoc's JS bridge. **[builder]** picks after a spike. |
 | PDF render / text / structure | **PDFium** via `pdfium-render` (prebuilt binaries for Win/Linux/Android) | Rendering the reader, extracting text with positions and fonts, extracting images. See license note §10. |
 | PDF write / compress | `lopdf` | Recompress and downsample embedded images, object streams, strip unused objects. |
-| PDF → DOCX/MD/HTML | Custom reconstruction in `ff-core`: PDFium structured text → reading order (multi-column detection), paragraphs, headings (by font size and weight), lists, tables (from ruling lines **and** whitespace/alignment grids, including merged cells), images at their position, links, footnotes, headers/footers (detected and kept separate) → an intermediate document → `docx-rs` writes DOCX directly (so fonts, sizes and colours are kept) and Pandoc writes MD/HTML | **Must be high quality in v1 [decided].** This is the largest single phase. The quality bar is in §7.6. |
+| PDF → DOCX/MD/HTML | Custom reconstruction in `fo-core`: PDFium structured text → reading order (multi-column detection), paragraphs, headings (by font size and weight), lists, tables (from ruling lines **and** whitespace/alignment grids, including merged cells), images at their position, links, footnotes, headers/footers (detected and kept separate) → an intermediate document → `docx-rs` writes DOCX directly (so fonts, sizes and colours are kept) and Pandoc writes MD/HTML | **Must be high quality in v1 [decided].** This is the largest single phase. The quality bar is in §7.6. |
 | LibreOffice (desktop only) | Detect `soffice` on PATH or in standard install folders, then run `soffice --headless --convert-to` into a temp dir | If it's missing, those tools show "Install LibreOffice to enable" with a link. **[decided: optional]** |
 | Images: decode | `image` crate (PNG, JPEG, GIF, BMP, ICO, TIFF, WebP, PNM, TGA, DDS, HDR, EXR, QOI, farbfeld), AVIF via dav1d, `libheif-rs` (HEIC/HEIF), `resvg` (SVG → raster), `rawler` (camera RAW: CR2/CR3/NEF/ARW/DNG/ORF/RW2…), `jxl-oxide` (JPEG XL), `psd` (flattened PSD) | HEIC: because of HEVC patents, Android uses the system decoder (`ImageDecoder`, API 28+) instead of bundling libde265. Desktop bundles libheif + libde265, as many open-source viewers do, and notes it in the README. **[proposal]** |
 | Images: encode | `mozjpeg` (JPEG), `oxipng` (PNG lossless optimise), `webp` (lossy/lossless), `ravif` (AVIF), `jpegxl-rs` (JXL), `image` for the rest | RAW and PSD are **read-only** (no format writes them back sensibly). SVG output = the raster embedded in an SVG wrapper, clearly labeled. |
@@ -160,13 +160,13 @@ can be cancelled. **[proposal]**
 ### 5.3 UI shape **[proposal]**
 
 ```
-┌ FileForge ───────────────────────────────────────────────┐
+┌ FileOdyssey───────────────────────────────────────────────┐
 │ ▸ Convert   ▸ Compress   ▸ Images   ▸ Read   ▸ Scan*     │  *Android only
 ├──────────────────────────────────────────────────────────┤
 │   Drop files here (or tap to pick)                       │
 │   ─ report.pdf      PDF → [DOCX ▾]   ⚠ best effort       │
 │   ─ notes.md        MD  → [DOCX ▾]   ✓                   │
-│   [Output folder: ~/Documents/FileForge]   [ Run all ]   │
+│   [Output folder: ~/Documents/FileOdyssey]   [ Run all ]   │
 ├──────────────────────────────────────────────────────────┤
 │ Recent jobs: ✓ notes.docx  (open · show in folder · report)│
 └──────────────────────────────────────────────────────────┘
@@ -178,7 +178,7 @@ can be cancelled. **[proposal]**
 - Light and dark theme that follows the system. English UI for v1. Strings go
   in a resource file so Bengali can be added later. **[proposal]**
 - Android: the same tabs as a bottom navigation bar, and "Open with
-  FileForge" / share-sheet targets for incoming files.
+  FileOdyssey" / share-sheet targets for incoming files.
 - Outputs never overwrite inputs. The default name is `name.ext` →
   `name (converted).newext`.
 
@@ -304,7 +304,7 @@ The old repo is MIT. Several of the best engines are copyleft:
 - libheif / rawler: LGPL (fine if dynamically linked or source is offered).
 - PDFium: BSD/Apache (permissive). MuPDF was deliberately avoided because it's AGPL.
 
-**Decision [decided]:** FileForge Native is licensed **GPL-3.0-or-later with
+**Decision [decided]:** FileOdyssey is licensed **GPL-3.0-or-later with
 an additional permission** (GPLv3 §7) allowing it to be combined with Google
 Play services / ML Kit libraries. This keeps Pandoc and the ML Kit scanners.
 The exception text goes in `LICENSE` and the README. The old repo stays MIT.

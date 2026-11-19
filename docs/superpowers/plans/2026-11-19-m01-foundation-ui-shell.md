@@ -4,11 +4,11 @@
 
 **Goal:** A Cargo workspace that builds a Tauri 2 + Leptos app for Windows/Linux/Android. It detects dropped files by content, runs jobs through a tool registry with progress, cancel and safe output naming, and shows them in the organic UI shell. CI builds all three platforms.
 
-**Architecture:** `ff-types` holds serde types shared by Rust and wasm. `ff-core` holds the engines: detection, naming, the `Tool` trait, the registry and the job runner, with no UI. `ff-app` is the Tauri shell: commands, events, dialogs and drag-drop. `ff-ui` is the Leptos CSR frontend built with Trunk, with a mock backend for browser preview. No real conversion tools yet; M2+ register them.
+**Architecture:** `fo-types` holds serde types shared by Rust and wasm. `fo-core` holds the engines: detection, naming, the `Tool` trait, the registry and the job runner, with no UI. `fo-app` is the Tauri shell: commands, events, dialogs and drag-drop. `fo-ui` is the Leptos CSR frontend built with Trunk, with a mock backend for browser preview. No real conversion tools yet; M2+ register them.
 
 **Tech Stack:** Rust 1.97, Tauri 2.12 (stable, NOT 3.0-alpha), Leptos 0.8 (stable, NOT 0.9-rc), Trunk, wasm-bindgen, `infer` 0.22, `zip`, `serde`/`serde_json`, `uuid`, `tauri-plugin-dialog` 2.8, `tauri-plugin-opener` 2.7, `tempfile` (tests).
 
-**Spec:** `docs/superpowers/specs/2026-11-19-fileforge-native-toolkit-design.md` · Roadmap: `docs/superpowers/plans/2026-11-19-roadmap.md`
+**Spec:** `docs/superpowers/specs/2026-11-19-fileodyssey-native-toolkit-design.md` · Roadmap: `docs/superpowers/plans/2026-11-19-roadmap.md`
 
 ## Global Constraints
 
@@ -18,7 +18,7 @@
 - No temp files left behind. Each job uses a temp dir that is deleted on success, failure and cancel.
 - Inputs are untrusted. Detection reads at most the first 8 KiB plus the zip central directory.
 - Licence: GPL-3.0-or-later with an additional permission (GPLv3 §7) for Google Play services / ML Kit.
-- English UI, with every user-facing string in one module (`ff-ui/src/strings.rs`) so Bengali can be added later.
+- English UI, with every user-facing string in one module (`fo-ui/src/strings.rs`) so Bengali can be added later.
 - Scan tab only on Android.
 - `cargo clippy --workspace -- -D warnings` and `cargo fmt --check` clean.
 
@@ -50,7 +50,7 @@ The subject is a private, offline workbench for files. "Organic" means natural, 
 │ Read │        ╰──────────────────────────╯           │  opened)  │
 │ Scan*│  report.pdf     PDF   to [DOCX ▾]  ⚠ best effort│           │
 │      │  notes.md       Markdown to [DOCX ▾]          │           │
-│      │  Save to ~/Documents/FileForge  [Change] [Run all]│        │
+│      │  Save to ~/Documents/FileOdyssey  [Change] [Run all]│        │
 │      │  ─ notes (converted).docx  ✓  Open · Show · Report│        │
 └──────┴───────────────────────────────────────────────┴───────────┘
 ```
@@ -68,8 +68,8 @@ The subject is a private, offline workbench for files. "Organic" means natural, 
 ### Task 1: Workspace, shared types, licence
 
 **Files:**
-- Create: `Cargo.toml` (workspace: `crates/ff-types`, `crates/ff-core`, `crates/ff-app`, `crates/ff-ui`), `rust-toolchain.toml` (channel `stable`, targets `wasm32-unknown-unknown`, `aarch64-linux-android`, `armv7-linux-androideabi`, `x86_64-linux-android`), `.gitignore`, `LICENSE` (GPL-3.0 text + "Additional permission under GNU GPL version 3 section 7" paragraph naming Google Play services and Google ML Kit libraries), `README.md` (one-paragraph description + build instructions), `crates/ff-types/src/lib.rs`
-- Test: `crates/ff-types/tests/serde_roundtrip.rs`
+- Create: `Cargo.toml` (workspace: `crates/fo-types`, `crates/fo-core`, `crates/fo-app`, `crates/fo-ui`), `rust-toolchain.toml` (channel `stable`, targets `wasm32-unknown-unknown`, `aarch64-linux-android`, `armv7-linux-androideabi`, `x86_64-linux-android`), `.gitignore`, `LICENSE` (GPL-3.0 text + "Additional permission under GNU GPL version 3 section 7" paragraph naming Google Play services and Google ML Kit libraries), `README.md` (one-paragraph description + build instructions), `crates/fo-types/src/lib.rs`
+- Test: `crates/fo-types/tests/serde_roundtrip.rs`
 
 **Interfaces:**
 - Produces (all `#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]`, `#[serde(rename_all = "snake_case")]`):
@@ -86,19 +86,19 @@ The subject is a private, offline workbench for files. "Organic" means natural, 
   - `struct JobEvent { job_id: String, input: String, status: JobStatus }`
 
 - [ ] **Step 1: Write failing tests** `roundtrip_job_event_done` (serialize → deserialize equals; JSON contains `"done"`), `verdict_exact_when_nothing_lost`, `verdict_warn_on_dropped_metric` (`before 3, after 2`), `verdict_warn_on_similarity_0_985`, `verdict_warn_on_any_warning`, `image_kind_serializes_as {"image":"png"}`.
-- [ ] **Step 2:** `cargo test -p ff-types` → FAIL (types missing).
-- [ ] **Step 3:** Implement the types above in `crates/ff-types/src/lib.rs` (deps: `serde`, `serde_json` only, so it stays wasm-safe). Create the workspace files; `ff-core`/`ff-app`/`ff-ui` as empty lib/bin crates so the workspace compiles.
-- [ ] **Step 4:** `cargo test -p ff-types` → PASS; `cargo build --workspace` → OK.
+- [ ] **Step 2:** `cargo test -p fo-types` → FAIL (types missing).
+- [ ] **Step 3:** Implement the types above in `crates/fo-types/src/lib.rs` (deps: `serde`, `serde_json` only, so it stays wasm-safe). Create the workspace files; `fo-core`/`fo-app`/`fo-ui` as empty lib/bin crates so the workspace compiles.
+- [ ] **Step 4:** `cargo test -p fo-types` → PASS; `cargo build --workspace` → OK.
 - [ ] **Step 5: Commit** `feat: workspace, shared types, GPL-3.0 licence with ML Kit permission` (include the spec, roadmap and this plan already in `docs/`).
 
 ### Task 2: File-type detection by content
 
 **Files:**
-- Create: `crates/ff-core/src/lib.rs`, `crates/ff-core/src/detect.rs`
-- Test: `crates/ff-core/tests/detect.rs` (fixtures generated in-test into a `tempfile::TempDir`: magic bytes, and small zips built with the `zip` crate)
+- Create: `crates/fo-core/src/lib.rs`, `crates/fo-core/src/detect.rs`
+- Test: `crates/fo-core/tests/detect.rs` (fixtures generated in-test into a `tempfile::TempDir`: magic bytes, and small zips built with the `zip` crate)
 
 **Interfaces:**
-- Consumes: `ff_types::{FileKind, ImageFormat, ArchiveFormat, DetectedFile}`
+- Consumes: `fo_types::{FileKind, ImageFormat, ArchiveFormat, DetectedFile}`
 - Produces: `pub fn detect_kind(path: &Path) -> std::io::Result<FileKind>`; `pub fn detect_file(path: &Path) -> std::io::Result<DetectedFile>`
 
 Rules, in order:
@@ -112,7 +112,7 @@ Rules, in order:
 5. Text formats by extension (`md|markdown`, `html|htm`, `csv`, `json`, `rtf` also by `{\rtf` prefix, `svg` also by `<svg` in the first 8 KiB). Any other valid UTF-8 → `Text`; otherwise → `Unknown`.
 
 - [ ] **Step 1: Write failing tests:** `png_bytes_named_txt_is_png`, `docx_renamed_zip_is_docx`, `epub_detected_by_mimetype_entry`, `plain_zip_is_archive`, `pdf_magic`, `markdown_by_extension`, `svg_by_content`, `zero_byte_is_unknown`, `binary_garbage_is_unknown`, `bengali_name_with_spaces` (file `রিপোর্ট ফাইল.pdf` → `DetectedFile.name == "রিপোর্ট ফাইল.pdf"`, kind `Pdf`), `missing_file_is_io_error`.
-- [ ] **Step 2:** `cargo test -p ff-core --test detect` → FAIL.
+- [ ] **Step 2:** `cargo test -p fo-core --test detect` → FAIL.
 - [ ] **Step 3:** Implement `detect.rs` per the rules (deps `infer`, `zip`).
 - [ ] **Step 4:** Tests → PASS.
 - [ ] **Step 5: Commit** `feat(core): content-based file type detection`.
@@ -120,8 +120,8 @@ Rules, in order:
 ### Task 3: Tool trait, registry, safe naming, job runner
 
 **Files:**
-- Create: `crates/ff-core/src/{tool.rs,registry.rs,naming.rs,runner.rs}`
-- Test: `crates/ff-core/tests/{naming.rs,runner.rs}` (a `TestTool` defined in the test: it writes the input uppercased; options `{"sleep_ms":n,"fail":true}`)
+- Create: `crates/fo-core/src/{tool.rs,registry.rs,naming.rs,runner.rs}`
+- Test: `crates/fo-core/tests/{naming.rs,runner.rs}` (a `TestTool` defined in the test: it writes the input uppercased; options `{"sleep_ms":n,"fail":true}`)
 
 **Interfaces:**
 - Consumes: Task 1 types; `detect_kind`.
@@ -135,49 +135,49 @@ Rules, in order:
   - `pub fn output_path(input: &Path, out_dir: &Path, ext: &str) -> PathBuf`: `stem (converted).ext`, then ` (converted 2)`, ` (converted 3)`…; skips any path that exists **or** equals `input`
   - `pub struct Runner`: `new(Arc<Registry>, workers: usize)`; `submit(JobRequest, sink: Arc<dyn Fn(JobEvent) + Send + Sync>) -> String` (job id, uuid v4; one event stream per input, in order `Queued → Running* → Done|Failed|Cancelled`); `cancel(&str)`
 
-Runner algorithm: for each input, create the work dir `out_dir/.fileforge-<jobid>-<n>`. Call `tool.run`. On `Ok`, move each file to `output_path(...)` with `fs::rename` (fallback copy+remove), then emit `Done` with the final paths. On `Err` or cancel, emit `Failed`/`Cancelled`. **Always** remove the work dir. An unknown `tool_id` → `Failed { "This tool isn't available" }`. A missing input → `Failed { "File not found: <name>" }`. Workers are a fixed pool of `std::thread`s fed by an `std::sync::mpsc` channel.
+Runner algorithm: for each input, create the work dir `out_dir/.fileodyssey-<jobid>-<n>`. Call `tool.run`. On `Ok`, move each file to `output_path(...)` with `fs::rename` (fallback copy+remove), then emit `Done` with the final paths. On `Err` or cancel, emit `Failed`/`Cancelled`. **Always** remove the work dir. An unknown `tool_id` → `Failed { "This tool isn't available" }`. A missing input → `Failed { "File not found: <name>" }`. Workers are a fixed pool of `std::thread`s fed by an `std::sync::mpsc` channel.
 
 - [ ] **Step 1: Write failing naming tests:** `first_name_is_converted_suffix` (`a.pdf`, ext `docx` → `a (converted).docx`), `existing_name_gets_counter` (→ `a (converted 2).docx`), `never_returns_input_path` (input `x (converted).md`, same dir, ext `md` → `x (converted) (converted).md`), `unicode_stem_preserved`.
 - [ ] **Step 2: Write failing runner tests:** `done_event_has_final_output_and_report`, `events_in_order_queued_running_done`, `cancel_mid_job_leaves_no_output_and_no_workdir` (`sleep_ms:500`, cancel after 50 ms → `Cancelled`, out dir contains only the input), `failing_tool_emits_failed_and_cleans_up`, `unknown_tool_fails_clearly`, `missing_input_fails_clearly`, `registry_filters_by_kind_and_platform`.
-- [ ] **Step 3:** `cargo test -p ff-core` → FAIL.
+- [ ] **Step 3:** `cargo test -p fo-core` → FAIL.
 - [ ] **Step 4:** Implement `tool.rs`, `registry.rs`, `naming.rs`, `runner.rs` with the interfaces above.
-- [ ] **Step 5:** `cargo test -p ff-core` → PASS (run 3× to check for flakiness in the cancel test).
+- [ ] **Step 5:** `cargo test -p fo-core` → PASS (run 3× to check for flakiness in the cancel test).
 - [ ] **Step 6: Commit** `feat(core): tool registry, job runner with cancel, safe output naming`.
 
 ### Task 4: Tauri app shell and commands
 
 **Files:**
-- Create: `crates/ff-app/{Cargo.toml,build.rs,tauri.conf.json,capabilities/default.json,icons/*}`, `crates/ff-app/src/{main.rs,lib.rs,commands.rs,state.rs}`
-- Test: `crates/ff-app/src/commands.rs` `#[cfg(test)] mod tests` (plain functions, no Tauri runtime)
+- Create: `crates/fo-app/{Cargo.toml,build.rs,tauri.conf.json,capabilities/default.json,icons/*}`, `crates/fo-app/src/{main.rs,lib.rs,commands.rs,state.rs}`
+- Test: `crates/fo-app/src/commands.rs` `#[cfg(test)] mod tests` (plain functions, no Tauri runtime)
 
 **Interfaces:**
-- Consumes: `ff_core::{detect_file, Registry, Runner}`; Task 1 types.
+- Consumes: `fo_core::{detect_file, Registry, Runner}`; Task 1 types.
 - Produces (Tauri commands; the UI calls these exact names with camelCase args):
   - `platform() -> Platform` (`cfg!(target_os = "android")`)
   - `detect_files(paths: Vec<String>) -> Vec<Result<DetectedFile, String>>` (serialized as `{ok}|{err}`)
   - `tools_for(kind: FileKind) -> Vec<ToolInfo>`
-  - `default_out_dir() -> Result<String, String>`: `<Documents>/FileForge` (Android: app-specific external files dir), created if missing
+  - `default_out_dir() -> Result<String, String>`: `<Documents>/FileOdyssey` (Android: app-specific external files dir), created if missing
   - `pick_files() -> Vec<String>`, `pick_folder() -> Option<String>` (`tauri-plugin-dialog`, blocking variants)
   - `start_job(req: JobRequest) -> String`; `cancel_job(job_id: String)`
   - `open_path(path: String)`, `reveal_path(path: String)` (`tauri-plugin-opener`)
   - Events: `"job-event"` (payload `JobEvent`), `"files-dropped"` (payload `Vec<String>`, from `WindowEvent::DragDrop(Drop)`)
 - Logic lives in `fn detect_files_impl(paths) -> …` / `fn default_out_dir_impl(docs: &Path) -> …` so it can be unit-tested; the `#[tauri::command]` wrappers are one-liners.
-- `tauri.conf.json`: identifier `io.github.shamsularefin707.fileforge`, productName `FileForge`, `build.frontendDist: "../ff-ui/dist"`, `build.devUrl: "http://localhost:1420"`, `beforeDevCommand: "trunk serve --config ../ff-ui/Trunk.toml"`, `beforeBuildCommand: "trunk build --release --config ../ff-ui/Trunk.toml"`, `app.withGlobalTauri: true`, CSP `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: data:; connect-src ipc: http://ipc.localhost` (no remote origins), min window 900×600.
+- `tauri.conf.json`: identifier `io.github.shamsularefin707.fileodyssey`, productName `FileOdyssey`, `build.frontendDist: "../fo-ui/dist"`, `build.devUrl: "http://localhost:1420"`, `beforeDevCommand: "trunk serve --config ../fo-ui/Trunk.toml"`, `beforeBuildCommand: "trunk build --release --config ../fo-ui/Trunk.toml"`, `app.withGlobalTauri: true`, CSP `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: data:; connect-src ipc: http://ipc.localhost` (no remote origins), min window 900×600.
 
 - [ ] **Step 1: Write failing tests:** `detect_files_mixes_ok_and_err` (one real file, one missing → `[Ok, Err("File not found: …")]`), `default_out_dir_created_under_documents`, `tools_for_unknown_is_empty`.
-- [ ] **Step 2:** Install Linux deps (`libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev libssl-dev`) and `cargo install tauri-cli --version '^2' --locked`, `cargo install trunk --locked`. `cargo test -p ff-app` → FAIL.
+- [ ] **Step 2:** Install Linux deps (`libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev libssl-dev`) and `cargo install tauri-cli --version '^2' --locked`, `cargo install trunk --locked`. `cargo test -p fo-app` → FAIL.
 - [ ] **Step 3:** Implement the commands, state (`AppState { registry: Arc<Registry>, runner: Runner }`, workers = `available_parallelism - 1`, min 1) and the drag-drop → `files-dropped` emit. Generate icons with `cargo tauri icon` from a 1024px pond-shaped PNG (draw the SVG in `assets/icon.svg`: a `--river` organic blob on `--lichen`).
-- [ ] **Step 4:** `cargo test -p ff-app` → PASS; `cargo build -p ff-app` → OK.
+- [ ] **Step 4:** `cargo test -p fo-app` → PASS; `cargo build -p fo-app` → OK.
 - [ ] **Step 5: Commit** `feat(app): Tauri shell with detection, jobs, dialogs, drag-drop`.
 
 ### Task 5: Leptos UI shell (organic design)
 
 **Files:**
-- Create: `crates/ff-ui/{Cargo.toml,Trunk.toml,index.html}`, `crates/ff-ui/src/{main.rs,bridge.rs,mock.rs,state.rs,strings.rs}`, `crates/ff-ui/src/components/{rail.rs,pond.rs,file_list.rs,jobs.rs,report.rs}`, `crates/ff-ui/style/{tokens.css,base.css,app.css}`, `crates/ff-ui/assets/fonts/*.woff2` (+ `OFL.txt`)
-- Test: `crates/ff-ui/tests/state.rs` (`wasm-bindgen-test`, run headless with `wasm-pack test --node` on pure functions)
+- Create: `crates/fo-ui/{Cargo.toml,Trunk.toml,index.html}`, `crates/fo-ui/src/{main.rs,bridge.rs,mock.rs,state.rs,strings.rs}`, `crates/fo-ui/src/components/{rail.rs,pond.rs,file_list.rs,jobs.rs,report.rs}`, `crates/fo-ui/style/{tokens.css,base.css,app.css}`, `crates/fo-ui/assets/fonts/*.woff2` (+ `OFL.txt`)
+- Test: `crates/fo-ui/tests/state.rs` (`wasm-bindgen-test`, run headless with `wasm-pack test --node` on pure functions)
 
 **Interfaces:**
-- Consumes: Task 4 command and event names; Task 1 types (`ff-types` is a dependency).
+- Consumes: Task 4 command and event names; Task 1 types (`fo-types` is a dependency).
 - Produces:
   - `bridge.rs`: `async fn invoke<A: Serialize, R: DeserializeOwned>(cmd: &str, args: &A) -> Result<R, String>` and `fn listen<T: DeserializeOwned>(event: &str, f: impl Fn(T) + 'static)`. Both go to `window.__TAURI__` when present, else to `mock.rs`. The mock returns fake files and two fake tools ("To DOCX" best-effort, "To Markdown") and emits fake progress events, so `trunk serve` works in a normal browser.
   - `state.rs` (pure, testable): `fn visible_tabs(p: Platform) -> Vec<Category>` (Scan only on Android); `fn merge_files(existing: &[DetectedFile], new: Vec<DetectedFile>) -> Vec<DetectedFile>` (dedupe by path, keep order); `fn apply_event(jobs: &mut Vec<JobRow>, ev: JobEvent)` (`JobRow { job_id, input, status }`, upsert by `(job_id, input)`).
@@ -191,9 +191,9 @@ Runner algorithm: for each input, create the work dir `out_dir/.fileforge-<jobid
 - Tokens, type and layout exactly as in **Design Direction** above.
 
 - [ ] **Step 1: Write failing tests:** `scan_tab_hidden_on_desktop`, `scan_tab_shown_on_android`, `merge_dedupes_by_path_and_keeps_order`, `apply_event_upserts_running_then_done`.
-- [ ] **Step 2:** `wasm-pack test --node crates/ff-ui` → FAIL.
+- [ ] **Step 2:** `wasm-pack test --node crates/fo-ui` → FAIL.
 - [ ] **Step 3:** Implement `state.rs`, then `bridge.rs` + `mock.rs`, then the components and CSS. Fonts: `npm pack @fontsource/young-serif @fontsource/atkinson-hyperlegible-next` in a scratch dir; copy the latin woff2 files (400, 700) and the licence. If a package is missing, use the nearest OFL humanist alternative and note it in the commit.
-- [ ] **Step 4:** Tests → PASS. `trunk build --config crates/ff-ui/Trunk.toml` → OK.
+- [ ] **Step 4:** Tests → PASS. `trunk build --config crates/fo-ui/Trunk.toml` → OK.
 - [ ] **Step 5: Visual check.** Run `trunk serve` (mock backend) and screenshot with headless Chromium/Playwright at 1280×800 and 390×844, in light and dark, in three states: empty, files listed, job done with the report open. Critique against Design Direction:
   - Is the pond the only bold element?
   - Is any text using all caps or monospace?
@@ -208,11 +208,11 @@ Runner algorithm: for each input, create the work dir `out_dir/.fileforge-<jobid
 - Create: `.github/workflows/ci.yml`
 
 **Interfaces:**
-- Consumes: everything above. Produces: CI artifacts `fileforge-windows` (NSIS .exe), `fileforge-linux` (AppImage + .deb), `fileforge-android` (debug APK, unsigned; signing is M9).
+- Consumes: everything above. Produces: CI artifacts `fileodyssey-windows` (NSIS .exe), `fileodyssey-linux` (AppImage + .deb), `fileodyssey-android` (debug APK, unsigned; signing is M9).
 
 Jobs:
-1. `check` (ubuntu-24.04): apt deps from Task 4, `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace --exclude ff-ui`, `wasm-pack test --node crates/ff-ui`, `trunk build`.
-2. `desktop` (matrix `windows-latest`, `ubuntu-22.04`; needs `check`): `tauri-apps/tauri-action@v0` with `projectPath: crates/ff-app`, no release, then upload the bundle dir.
+1. `check` (ubuntu-24.04): apt deps from Task 4, `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace --exclude fo-ui`, `wasm-pack test --node crates/fo-ui`, `trunk build`.
+2. `desktop` (matrix `windows-latest`, `ubuntu-22.04`; needs `check`): `tauri-apps/tauri-action@v0` with `projectPath: crates/fo-app`, no release, then upload the bundle dir.
 3. `android` (ubuntu-24.04; needs `check`): `actions/setup-java` (temurin 17), `android-actions/setup-android`, NDK r27 via `sdkmanager`, the rustup Android targets, `cargo tauri android init --ci` (generated project not committed in M1), `cargo tauri android build --debug --apk`, then upload the APK.
 
 Cache with `Swatinem/rust-cache`.
