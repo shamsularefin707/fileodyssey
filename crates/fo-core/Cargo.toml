@@ -16,13 +16,12 @@ rgb = "0.8"
 webp = { version = "0.3", default-features = false }
 jpeg-encoder = "0.7"
 oxipng = { version = "10", default-features = false }
-fast_image_resize = "6"
 jxl-oxide = { version = "0.12", default-features = false, features = ["image"] }
 zune-jpegxl = "0.5"
 resvg = { version = "0.50", default-features = false }
 psd = "0.3"
 rawler = "0.8"
-rxing = { version = "0.9", default-features = false, features = ["encoding_rs"] }
+rxing = { version = "0.9", default-features = false, features = ["encoding_rs", "decoders", "encoders", "full_barcode_format_support", "multi_barcode_readers"] }
 pdf-writer = "0.15"
 miniz_oxide = "0.8"
 zune-core = "0.5"

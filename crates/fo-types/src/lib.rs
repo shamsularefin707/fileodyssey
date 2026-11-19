@@ -169,6 +169,45 @@ pub struct ToolInfo {
     /// Known-lossy path; the UI marks it "best effort" before running.
     pub best_effort: bool,
     pub platforms: Vec<Platform>,
+    /// Settings the UI shows for this tool; values go into `JobRequest.options`.
+    #[serde(default)]
+    pub options: Vec<OptionSpec>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OptionKind {
+    Slider {
+        min: u32,
+        max: u32,
+        step: u32,
+        default: u32,
+        unit: String,
+    },
+    Toggle {
+        default: bool,
+    },
+    Number {
+        min: u32,
+        max: u32,
+        default: u32,
+        unit: String,
+    },
+    /// (value, label) pairs.
+    Choice {
+        choices: Vec<(String, String)>,
+        default: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OptionSpec {
+    pub key: String,
+    pub label: String,
+    pub kind: OptionKind,
+    /// Targets this option applies to; empty means every target.
+    #[serde(default)]
+    pub targets: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

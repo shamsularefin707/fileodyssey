@@ -77,6 +77,7 @@ fn tool(
         targets: targets.iter().map(|s| s.to_string()).collect(),
         best_effort,
         platforms: vec![Platform::Desktop, Platform::Android],
+        options: vec![],
     }
 }
 

@@ -19,6 +19,7 @@ impl Tool for TestTool {
             targets: vec!["txt".into()],
             best_effort: false,
             platforms: vec![Platform::Desktop],
+            options: vec![],
         }
     }
     fn accepts(&self, kind: &FileKind) -> bool {

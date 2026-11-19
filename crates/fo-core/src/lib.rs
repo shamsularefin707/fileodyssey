@@ -1,6 +1,7 @@
 pub mod detect;
 pub mod image;
 pub mod naming;
+pub mod qr;
 pub mod registry;
 pub mod runner;
 pub mod tool;
