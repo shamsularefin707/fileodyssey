@@ -112,10 +112,22 @@ pub async fn pick_files(app: AppHandle) -> Vec<String> {
 
 #[tauri::command]
 pub async fn pick_folder(app: AppHandle) -> Option<String> {
+    pick_folder_impl(&app)
+}
+
+#[cfg(desktop)]
+fn pick_folder_impl(app: &AppHandle) -> Option<String> {
     app.dialog()
         .file()
         .blocking_pick_folder()
         .map(|p| p.to_string())
+}
+
+/// The dialog plugin has no folder picker on Android; results always go to
+/// the default folder there and the UI hides "Change".
+#[cfg(mobile)]
+fn pick_folder_impl(_app: &AppHandle) -> Option<String> {
+    None
 }
 
 #[tauri::command]

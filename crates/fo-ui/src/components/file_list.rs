@@ -184,7 +184,9 @@ pub fn FileList() -> impl IntoView {
             <div class="run-bar">
                 <p class="save-to">
                     {SAVE_TO} " " <span class="dir">{move || ctx.out_dir.get()}</span> " "
-                    <button class="link" on:click=change_dir>{CHANGE}</button>
+                    <Show when=move || ctx.platform.get() == fo_types::Platform::Desktop>
+                        <button class="link" on:click=change_dir>{CHANGE}</button>
+                    </Show>
                 </p>
                 <button class="primary" on:click=run_all disabled=move || !can_run(&ctx.out_dir.get(), runnable().len())>{RUN_ALL}</button>
             </div>
