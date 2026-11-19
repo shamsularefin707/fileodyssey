@@ -86,6 +86,10 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: android-actions/setup-android@v3
+        with:
+          # The default list includes the removed "tools" package, which fails.
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
       - name: Install NDK
         run: |
           sdkmanager --install "ndk;${NDK_VERSION}"
