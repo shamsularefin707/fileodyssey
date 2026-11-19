@@ -1651,6 +1651,7 @@ dependencies = [
  "infer",
  "jpeg-encoder",
  "jxl-oxide",
+ "miniz_oxide 0.8.9",
  "oxipng",
  "pdf-writer",
  "psd",
@@ -1664,6 +1665,7 @@ dependencies = [
  "uuid",
  "webp",
  "zip",
+ "zune-core",
  "zune-jpegxl",
 ]
 

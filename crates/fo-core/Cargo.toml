@@ -24,6 +24,8 @@ psd = "0.3"
 rawler = "0.8"
 rxing = { version = "0.9", default-features = false, features = ["encoding_rs"] }
 pdf-writer = "0.15"
+miniz_oxide = "0.8"
+zune-core = "0.5"
 
 [dev-dependencies]
 tempfile = "3"
