@@ -15,7 +15,107 @@ pub fn image_tools() -> Vec<Arc<dyn Tool>> {
         Arc::new(ImageTool::Resize),
         Arc::new(ImageTool::Compress),
         Arc::new(ImageTool::QrRead),
+        Arc::new(ImagesToPdf),
     ]
+}
+
+/// Several images → one PDF, one page each, in the order given.
+struct ImagesToPdf;
+
+impl Tool for ImagesToPdf {
+    fn info(&self) -> ToolInfo {
+        ToolInfo {
+            id: s("img.to_pdf"),
+            label: s("Combine into one PDF"),
+            category: Category::Images,
+            targets: targets(&["pdf"]),
+            best_effort: false,
+            platforms: vec![Platform::Desktop, Platform::Android],
+            options: vec![OptionSpec {
+                key: s("page"),
+                label: s("Page size"),
+                kind: OptionKind::Choice {
+                    choices: vec![
+                        (s("image"), s("Same as each image")),
+                        (s("a4"), s("A4")),
+                        (s("letter"), s("Letter")),
+                    ],
+                    default: s("image"),
+                },
+                targets: vec![],
+            }],
+        }
+    }
+
+    fn accepts(&self, kind: &FileKind) -> bool {
+        decodable(kind)
+    }
+
+    fn combines(&self) -> bool {
+        true
+    }
+
+    fn run(&self, input: &Path, ctx: &Ctx) -> Result<ToolOutput, ToolError> {
+        self.run_many(&[input.to_path_buf()], ctx)
+    }
+
+    fn run_many(&self, inputs: &[PathBuf], ctx: &Ctx) -> Result<ToolOutput, ToolError> {
+        use super::pdf::{write_pdf, PageSize, PdfImage};
+        let page = match ctx.options.get("page").and_then(|v| v.as_str()) {
+            Some("a4") => PageSize::A4,
+            Some("letter") => PageSize::Letter,
+            _ => PageSize::Image,
+        };
+        let mut decoded = Vec::with_capacity(inputs.len());
+        let mut warnings = vec![];
+        for (i, path) in inputs.iter().enumerate() {
+            if ctx.cancel.is_cancelled() {
+                return Err(ToolError::Cancelled);
+            }
+            let d = decode(path, &detect_kind(path)?)?;
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            if d.frames.len() > 1 {
+                warnings.push(format!(
+                    "{name}: only the first of {} frames was used",
+                    d.frames.len()
+                ));
+            }
+            if d.source_bytes.is_none() && d.bit_depth > 8 {
+                warnings.push(format!(
+                    "{name}: colour depth reduced from {} to 8 bits",
+                    d.bit_depth
+                ));
+            }
+            decoded.push(d);
+            (ctx.progress)((i + 1) as f32 / (inputs.len() + 1) as f32);
+        }
+        let pages: Vec<PdfImage> = decoded
+            .iter()
+            .map(|d| PdfImage {
+                image: d.first(),
+                jpeg: d.source_bytes.clone(),
+            })
+            .collect();
+        let out = out_path(ctx, "pdf");
+        write_pdf(&pages, page, &out)
+            .map_err(|e| ToolError::Failed(format!("Couldn't save the PDF: {e}")))?;
+        let n = inputs.len() as u64;
+        Ok(ToolOutput {
+            files: vec![(out, s("pdf"))],
+            report: FidelityReport {
+                metrics: vec![Metric {
+                    name: s("Pages"),
+                    before: n,
+                    after: pages.len() as u64,
+                }],
+                text_similarity: None,
+                warnings,
+            },
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

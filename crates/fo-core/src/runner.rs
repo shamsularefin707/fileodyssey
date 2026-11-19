@@ -1,7 +1,7 @@
 //! Background job runner: a fixed worker pool, per-input event streams,
 //! cancellation, and atomic placement of outputs (work dir → final name).
 
-use crate::naming::output_path;
+use crate::naming::output_path_with;
 use crate::registry::Registry;
 use crate::tool::{CancelToken, Ctx, ToolError};
 use fo_types::{JobEvent, JobRequest, JobStatus};
@@ -17,7 +17,11 @@ pub type Sink = Arc<dyn Fn(JobEvent) + Send + Sync>;
 struct Work {
     job_id: String,
     index: usize,
+    /// The input this unit reports events under.
     input: String,
+    /// Every file this unit reads: just `input`, or all of a combining job's inputs.
+    inputs: Vec<String>,
+    combine: bool,
     req: Arc<JobRequest>,
     sink: Sink,
     cancel: CancelToken,
@@ -29,6 +33,7 @@ type Jobs = Arc<Mutex<HashMap<String, CancelToken>>>;
 pub struct Runner {
     tx: Mutex<mpsc::Sender<Work>>,
     jobs: Jobs,
+    registry: Arc<Registry>,
 }
 
 impl Runner {
@@ -38,7 +43,7 @@ impl Runner {
         let jobs: Jobs = Arc::default();
         for _ in 0..workers.max(1) {
             let rx = Arc::clone(&rx);
-            let registry = Arc::clone(&registry);
+            let registry: Arc<Registry> = Arc::clone(&registry);
             let jobs = Arc::clone(&jobs);
             std::thread::spawn(move || loop {
                 let next = rx.lock().expect("runner queue").recv();
@@ -49,11 +54,13 @@ impl Runner {
         Self {
             tx: Mutex::new(tx),
             jobs,
+            registry,
         }
     }
 
     /// Queue one job; returns its id. Each input gets its own event stream:
-    /// Queued → Running* → Done | Failed | Cancelled.
+    /// Queued → Running* → Done | Failed | Cancelled. A combining tool's job
+    /// is a single unit reported under its first input.
     pub fn submit(&self, req: JobRequest, sink: Sink) -> String {
         let job_id = uuid::Uuid::new_v4().to_string();
         let cancel = CancelToken::new();
@@ -62,14 +69,32 @@ impl Runner {
             .expect("jobs")
             .insert(job_id.clone(), cancel.clone());
         let req = Arc::new(req);
-        let remaining = Arc::new(AtomicUsize::new(req.inputs.len()));
+        let combine = self
+            .registry
+            .get(&req.tool_id)
+            .is_some_and(|t| t.combines());
+        let units: Vec<(String, Vec<String>)> = if combine {
+            req.inputs
+                .first()
+                .map(|first| (first.clone(), req.inputs.clone()))
+                .into_iter()
+                .collect()
+        } else {
+            req.inputs
+                .iter()
+                .map(|i| (i.clone(), vec![i.clone()]))
+                .collect()
+        };
+        let remaining = Arc::new(AtomicUsize::new(units.len()));
         let tx = self.tx.lock().expect("runner queue");
-        for (index, input) in req.inputs.iter().enumerate() {
-            sink(event(&job_id, input, JobStatus::Queued));
+        for (index, (input, inputs)) in units.into_iter().enumerate() {
+            sink(event(&job_id, &input, JobStatus::Queued));
             let _ = tx.send(Work {
                 job_id: job_id.clone(),
                 index,
-                input: input.clone(),
+                input,
+                inputs,
+                combine,
                 req: Arc::clone(&req),
                 sink: Arc::clone(&sink),
                 cancel: cancel.clone(),
@@ -113,12 +138,14 @@ fn run_one(registry: &Registry, w: &Work) -> JobStatus {
         return failed("This tool isn't available");
     };
     let input = Path::new(&w.input);
-    if !input.is_file() {
-        let name = input
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        return failed(&format!("File not found: {name}"));
+    for path in w.inputs.iter().map(Path::new) {
+        if !path.is_file() {
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            return failed(&format!("File not found: {name}"));
+        }
     }
     let out_dir = PathBuf::from(&w.req.out_dir);
     if !out_dir.is_absolute() {
@@ -150,14 +177,22 @@ fn run_one(registry: &Registry, w: &Work) -> JobStatus {
     };
     // A tool that panics (e.g. a decoder on a malformed file) must not kill
     // the worker or leave the job hanging.
-    let result = catch_unwind(AssertUnwindSafe(|| tool.run(input, &ctx)))
-        .unwrap_or_else(|_| Err(ToolError::Failed("The tool crashed on this file".into())));
+    let paths: Vec<PathBuf> = w.inputs.iter().map(PathBuf::from).collect();
+    let label = if w.combine { "combined" } else { "converted" };
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        if w.combine {
+            tool.run_many(&paths, &ctx)
+        } else {
+            tool.run(input, &ctx)
+        }
+    }))
+    .unwrap_or_else(|_| Err(ToolError::Failed("The tool crashed on this file".into())));
 
     let status = match result {
         _ if w.cancel.is_cancelled() => JobStatus::Cancelled,
         Err(ToolError::Cancelled) => JobStatus::Cancelled,
         Err(ToolError::Failed(m)) => JobStatus::Failed { message: m },
-        Ok(out) => match place_outputs(input, &out_dir, &out.files) {
+        Ok(out) => match place_outputs(input, &out_dir, &out.files, label) {
             Ok(outputs) => JobStatus::Done {
                 outputs,
                 report: out.report,
@@ -173,10 +208,11 @@ fn place_outputs(
     input: &Path,
     out_dir: &Path,
     files: &[(PathBuf, String)],
+    label: &str,
 ) -> std::io::Result<Vec<String>> {
     files
         .iter()
-        .map(|(src, ext)| place_output(src, input, out_dir, ext))
+        .map(|(src, ext)| place_output_with(src, input, out_dir, ext, label))
         .collect()
 }
 
@@ -189,8 +225,18 @@ pub fn place_output(
     out_dir: &Path,
     ext: &str,
 ) -> std::io::Result<String> {
+    place_output_with(src, input, out_dir, ext, "converted")
+}
+
+pub fn place_output_with(
+    src: &Path,
+    input: &Path,
+    out_dir: &Path,
+    ext: &str,
+    label: &str,
+) -> std::io::Result<String> {
     loop {
-        let dest = output_path(input, out_dir, ext);
+        let dest = output_path_with(input, out_dir, ext, label);
         match std::fs::hard_link(src, &dest) {
             Ok(()) => {
                 std::fs::remove_file(src)?;
