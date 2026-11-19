@@ -194,6 +194,13 @@ mod tests {
             script.contains("'self'") && script.contains("'wasm-unsafe-eval'"),
             "{script}"
         );
+        // The UI fetches its own .wasm file, which falls under connect-src.
+        let connect = csp
+            .split(';')
+            .map(str::trim)
+            .find(|d| d.starts_with("connect-src"))
+            .expect("connect-src");
+        assert!(connect.contains("'self'"), "{connect}");
         assert!(
             !csp.contains("http://") || csp.contains("http://ipc.localhost"),
             "no remote origins: {csp}"
