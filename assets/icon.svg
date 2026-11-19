@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" rx="230" fill="#E4EAE0"/>
+  <!-- the pond: one asymmetric organic shape -->
+  <path d="M520 168c152-6 300 70 344 214 46 150-18 318-150 404-128 84-318 92-446 8C140 708 104 540 160 400 214 266 370 174 520 168z" fill="#5F8794"/>
+  <!-- a single ripple -->
+  <path d="M352 520c40-70 128-112 214-98 70 12 126 58 146 120" fill="none" stroke="#E4EAE0" stroke-width="34" stroke-linecap="round" opacity=".85"/>
+  <path d="M430 590c26-34 74-52 120-42 34 8 62 32 72 64" fill="none" stroke="#E4EAE0" stroke-width="30" stroke-linecap="round" opacity=".6"/>
+  <!-- a stone at the edge -->
+  <ellipse cx="760" cy="760" rx="96" ry="72" transform="rotate(-18 760 760)" fill="#1E3A2F"/>
+</svg>

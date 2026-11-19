@@ -1,0 +1,30 @@
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--lichen);
+  color: var(--pine);
+  font: 400 var(--t-s)/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { font-family: var(--serif); font-weight: 400; margin: 0; line-height: 1.2; }
+p { margin: 0; }
+ul { list-style: none; margin: 0; padding: 0; }
+button, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--river); outline-offset: 2px; border-radius: 6px; }
+.muted { color: var(--pine-soft); }
+.link {
+  background: none; border: 0; padding: 0;
+  color: var(--river-ink);
+  text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px;
+}
+.link:hover { text-decoration-thickness: 2px; }
+.primary {
+  background: var(--pine); color: var(--lichen);
+  border: 0; border-radius: 999px;
+  padding: 10px 22px; font-weight: 700;
+}
+.primary:disabled { opacity: .45; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
