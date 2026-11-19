@@ -44,7 +44,8 @@ pub fn query(key: &str) -> Option<String> {
 pub const SAMPLE_FILES: &[&str] = &[
     "/home/you/Documents/Quarterly report.pdf",
     "/home/you/Documents/meeting notes.md",
-    "/home/you/Pictures/river at dusk.heic",
+    "/home/you/Pictures/river at dusk.jpg",
+    "/home/you/Pictures/lichen close-up.png",
     "/home/you/Documents/রিপোর্ট ফাইল.docx",
 ];
 
@@ -56,6 +57,8 @@ fn kind_for(path: &str) -> FileKind {
         "docx" => FileKind::Docx,
         "epub" => FileKind::Epub,
         "png" => FileKind::Image(ImageFormat::Png),
+        "gif" => FileKind::Image(ImageFormat::Gif),
+        "webp" => FileKind::Image(ImageFormat::Webp),
         "jpg" | "jpeg" => FileKind::Image(ImageFormat::Jpeg),
         "heic" => FileKind::Image(ImageFormat::Heic),
         "zip" => FileKind::Archive(ArchiveFormat::Zip),
@@ -77,6 +80,8 @@ fn tool(
         targets: targets.iter().map(|s| s.to_string()).collect(),
         best_effort,
         platforms: vec![Platform::Desktop, Platform::Android],
+        options: vec![],
+        combines: false,
     }
 }
 
@@ -109,24 +114,193 @@ fn tools_for(kind: FileKind) -> Vec<ToolInfo> {
             ),
             tool("read.doc", "Read", Category::Read, &[], false),
         ],
-        FileKind::Image(_) => vec![
-            tool(
-                "img.convert",
-                "Convert image",
-                Category::Images,
-                &["jpg", "png", "webp", "avif", "jxl"],
-                false,
-            ),
-            tool(
-                "img.compress",
-                "Compress image",
-                Category::Compress,
-                &["jpg", "webp"],
-                false,
-            ),
-        ],
+        FileKind::Image(f) if !matches!(f, ImageFormat::Avif | ImageFormat::Heic) => image_tools(),
         _ => vec![],
     }
+}
+
+fn opt(
+    key: &str,
+    label: &str,
+    kind: OptionKind,
+    targets: &[&str],
+    show_if: Option<(&str, &str)>,
+) -> OptionSpec {
+    OptionSpec {
+        key: key.into(),
+        label: label.into(),
+        kind,
+        targets: targets.iter().map(|t| t.to_string()).collect(),
+        show_if: show_if.map(|(k, v)| (k.into(), v.into())),
+    }
+}
+
+/// Mirrors fo-core's image tools (fo-core itself doesn't build for wasm).
+fn image_tools() -> Vec<ToolInfo> {
+    const WRITE: &[&str] = &[
+        "png", "jpg", "webp", "avif", "jxl", "gif", "bmp", "ico", "tiff", "tga", "qoi", "pnm",
+        "pdf",
+    ];
+    let quality = |d| {
+        opt(
+            "quality",
+            "Quality",
+            OptionKind::Slider {
+                min: 1,
+                max: 100,
+                step: 1,
+                default: d,
+                unit: "".into(),
+            },
+            &["jpg", "webp", "avif"],
+            None,
+        )
+    };
+    let num = |k: &str, l: &str, max, d, u: &str, si| {
+        opt(
+            k,
+            l,
+            OptionKind::Number {
+                min: 1,
+                max,
+                default: d,
+                unit: u.into(),
+            },
+            &[],
+            si,
+        )
+    };
+    let mut convert = tool(
+        "img.convert",
+        "Convert image",
+        Category::Images,
+        WRITE,
+        false,
+    );
+    convert.options = vec![
+        quality(90),
+        opt(
+            "keep_metadata",
+            "Keep photo details (EXIF, colour profile)",
+            OptionKind::Toggle { default: true },
+            &[],
+            None,
+        ),
+    ];
+    let mut resize_targets = vec!["same"];
+    resize_targets.extend(WRITE.iter().filter(|t| **t != "pdf"));
+    let mut resize = tool(
+        "img.resize",
+        "Resize image",
+        Category::Images,
+        &resize_targets,
+        false,
+    );
+    resize.options = vec![
+        opt(
+            "mode",
+            "Resize by",
+            OptionKind::Choice {
+                choices: vec![
+                    ("fit".into(), "Fit inside a box".into()),
+                    ("percent".into(), "Percentage".into()),
+                    ("exact".into(), "Exact size".into()),
+                ],
+                default: "fit".into(),
+            },
+            &[],
+            None,
+        ),
+        num(
+            "width",
+            "Width",
+            30000,
+            1920,
+            "px",
+            Some(("mode", "!percent")),
+        ),
+        num(
+            "height",
+            "Height",
+            30000,
+            1080,
+            "px",
+            Some(("mode", "!percent")),
+        ),
+        num(
+            "percent",
+            "Percent",
+            400,
+            50,
+            "%",
+            Some(("mode", "percent")),
+        ),
+        quality(90),
+    ];
+    let mut compress = tool(
+        "img.compress",
+        "Compress image",
+        Category::Compress,
+        &["same", "jpg", "webp", "avif"],
+        false,
+    );
+    compress.options = vec![
+        opt(
+            "max_kb",
+            "Largest file size (0 = no limit)",
+            OptionKind::Number {
+                min: 0,
+                max: 100000,
+                default: 0,
+                unit: "KB".into(),
+            },
+            &[],
+            None,
+        ),
+        opt(
+            "quality",
+            "Quality",
+            OptionKind::Slider {
+                min: 1,
+                max: 100,
+                step: 1,
+                default: 80,
+                unit: "".into(),
+            },
+            &["same", "jpg", "webp", "avif"],
+            None,
+        ),
+    ];
+    let qr = tool(
+        "qr.read",
+        "Read QR code or barcode",
+        Category::Images,
+        &["txt"],
+        false,
+    );
+    let mut pdf = tool(
+        "img.to_pdf",
+        "Combine into one PDF",
+        Category::Images,
+        &["pdf"],
+        false,
+    );
+    pdf.combines = true;
+    pdf.options = vec![opt(
+        "page",
+        "Page size",
+        OptionKind::Choice {
+            choices: vec![
+                ("image".into(), "Same as each image".into()),
+                ("a4".into(), "A4".into()),
+                ("letter".into(), "Letter".into()),
+            ],
+            default: "image".into(),
+        },
+        &[],
+        None,
+    )];
+    vec![convert, resize, compress, qr, pdf]
 }
 
 fn detected(path: &str) -> DetectedFile {
@@ -192,7 +366,12 @@ pub async fn invoke(cmd: &str, args: JsValue) -> Result<JsValue, String> {
                 *n += 1;
                 format!("job-{n}")
             });
-            for input in &req.inputs {
+            let units: Vec<String> = if req.tool_id == "img.to_pdf" {
+                req.inputs.first().cloned().into_iter().collect()
+            } else {
+                req.inputs.clone()
+            };
+            for input in &units {
                 emit(
                     "job-event",
                     &JobEvent {

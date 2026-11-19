@@ -39,3 +39,15 @@ fn unicode_stem_preserved() {
         "রিপোর্ট ফাইল (converted).docx"
     );
 }
+
+#[test]
+fn naming_combined_label() {
+    let d = TempDir::new().unwrap();
+    let got =
+        fo_core::naming::output_path_with(&d.path().join("a.png"), d.path(), "pdf", "combined");
+    assert_eq!(got, d.path().join("a (combined).pdf"));
+    std::fs::write(&got, b"x").unwrap();
+    let next =
+        fo_core::naming::output_path_with(&d.path().join("a.png"), d.path(), "pdf", "combined");
+    assert_eq!(next, d.path().join("a (combined 2).pdf"));
+}

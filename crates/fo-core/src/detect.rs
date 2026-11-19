@@ -40,6 +40,9 @@ pub fn detect_kind(path: &Path) -> io::Result<FileKind> {
             return Ok(kind);
         }
     }
+    if let Some(kind) = from_magic(&buf, &ext) {
+        return Ok(kind);
+    }
     if buf.len() >= 262 && &buf[257..262] == b"ustar" {
         return Ok(FileKind::Archive(ArchiveFormat::Tar));
     }
@@ -89,6 +92,36 @@ fn from_infer(infer_ext: &str, path: &Path, ext: &str) -> Option<FileKind> {
         }),
         _ => None,
     }
+}
+
+/// Image formats `infer` doesn't know.
+fn from_magic(buf: &[u8], ext: &str) -> Option<FileKind> {
+    use ImageFormat as I;
+    let img = |f| Some(FileKind::Image(f));
+    if buf.starts_with(b"qoif") {
+        return img(I::Qoi);
+    }
+    if buf.starts_with(b"DDS ") {
+        return img(I::Dds);
+    }
+    if buf.starts_with(b"#?RADIANCE") || buf.starts_with(b"#?RGBE") {
+        return img(I::Hdr);
+    }
+    if buf.len() > 2
+        && buf[0] == b'P'
+        && (b'1'..=b'7').contains(&buf[1])
+        && buf[2].is_ascii_whitespace()
+    {
+        return img(I::Pnm);
+    }
+    if ext == "tga" || ext == "tpic" {
+        // TGA has no magic number; trust the extension if the header is plausible.
+        let plausible = buf.len() >= 18 && matches!(buf[2], 1 | 2 | 3 | 9 | 10 | 11);
+        if plausible {
+            return img(I::Tga);
+        }
+    }
+    None
 }
 
 fn from_zip(path: &Path) -> FileKind {

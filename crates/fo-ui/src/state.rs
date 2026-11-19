@@ -59,3 +59,68 @@ pub fn apply_event(jobs: &mut Vec<JobRow>, ev: JobEvent) {
 pub fn can_run(out_dir: &str, runnable: usize) -> bool {
     !out_dir.trim().is_empty() && runnable > 0
 }
+
+use fo_types::{OptionKind, OptionSpec};
+
+fn applies(spec: &OptionSpec, target: &str) -> bool {
+    spec.targets.is_empty() || spec.targets.iter().any(|t| t == target)
+}
+
+fn default_value(kind: &OptionKind) -> serde_json::Value {
+    match kind {
+        OptionKind::Slider { default, .. } | OptionKind::Number { default, .. } => {
+            (*default).into()
+        }
+        OptionKind::Toggle { default } => (*default).into(),
+        OptionKind::Choice { default, .. } => default.clone().into(),
+    }
+}
+
+/// Defaults for every option that applies to `target`.
+pub fn default_options(specs: &[OptionSpec], target: &str) -> serde_json::Value {
+    let map = specs
+        .iter()
+        .filter(|s| applies(s, target))
+        .map(|s| (s.key.clone(), default_value(&s.kind)))
+        .collect();
+    serde_json::Value::Object(map)
+}
+
+/// Defaults with the user's values on top (only for keys that apply).
+pub fn merged_options(
+    specs: &[OptionSpec],
+    target: &str,
+    user: Option<&serde_json::Value>,
+) -> serde_json::Value {
+    let mut v = default_options(specs, target);
+    if let (Some(obj), Some(serde_json::Value::Object(u))) = (v.as_object_mut(), user) {
+        for (k, val) in u {
+            if obj.contains_key(k) {
+                obj.insert(k.clone(), val.clone());
+            }
+        }
+    }
+    v
+}
+
+/// Options to show for `target`, honouring `show_if` against current `values`.
+pub fn visible_options<'a>(
+    specs: &'a [OptionSpec],
+    target: &str,
+    values: &serde_json::Value,
+) -> Vec<&'a OptionSpec> {
+    specs
+        .iter()
+        .filter(|s| applies(s, target))
+        .filter(|s| match &s.show_if {
+            None => true,
+            Some((key, want)) => {
+                let have = values.get(key).and_then(|v| v.as_str()).unwrap_or("");
+                match want.strip_prefix('!') {
+                    Some(not) => have != not,
+                    None => have == want,
+                }
+            }
+        })
+        .collect()
+}

@@ -73,3 +73,49 @@ fn labels_are_human_readable() {
     assert_eq!(FileKind::Docx.label(), "Word document");
     assert_eq!(FileKind::Image(ImageFormat::Png).label(), "PNG image");
 }
+
+#[test]
+fn option_spec_serde_roundtrip() {
+    let tool = ToolInfo {
+        id: "img.convert".into(),
+        label: "Convert image".into(),
+        category: Category::Images,
+        targets: vec!["jpg".into()],
+        best_effort: false,
+        platforms: vec![Platform::Desktop],
+        options: vec![
+            OptionSpec {
+                key: "quality".into(),
+                label: "Quality".into(),
+                kind: OptionKind::Slider {
+                    min: 1,
+                    max: 100,
+                    step: 1,
+                    default: 90,
+                    unit: "".into(),
+                },
+                targets: vec!["jpg".into()],
+                show_if: None,
+            },
+            OptionSpec {
+                key: "mode".into(),
+                label: "Resize by".into(),
+                kind: OptionKind::Choice {
+                    choices: vec![("fit".into(), "Fit inside".into())],
+                    default: "fit".into(),
+                },
+                targets: vec![],
+                show_if: Some(("other".into(), "!x".into())),
+            },
+        ],
+        combines: true,
+    };
+    let json = serde_json::to_string(&tool).unwrap();
+    assert_eq!(serde_json::from_str::<ToolInfo>(&json).unwrap(), tool);
+    // Older payloads without options still parse.
+    let legacy = r#"{"id":"x","label":"X","category":"convert","targets":[],"best_effort":false,"platforms":["desktop"]}"#;
+    assert!(serde_json::from_str::<ToolInfo>(legacy)
+        .unwrap()
+        .options
+        .is_empty());
+}

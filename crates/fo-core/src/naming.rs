@@ -5,6 +5,11 @@ use std::path::{Path, PathBuf};
 /// `stem (converted).ext`, then `stem (converted 2).ext`, `(converted 3)`, …
 /// Skips any candidate that exists or equals `input`.
 pub fn output_path(input: &Path, out_dir: &Path, ext: &str) -> PathBuf {
+    output_path_with(input, out_dir, ext, "converted")
+}
+
+/// Like `output_path`, with another label: `stem (label).ext`, `stem (label 2).ext`, …
+pub fn output_path_with(input: &Path, out_dir: &Path, ext: &str, label: &str) -> PathBuf {
     let stem = input
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())
@@ -13,9 +18,9 @@ pub fn output_path(input: &Path, out_dir: &Path, ext: &str) -> PathBuf {
     let mut n = 1u32;
     loop {
         let suffix = if n == 1 {
-            " (converted)".to_owned()
+            format!(" ({label})")
         } else {
-            format!(" (converted {n})")
+            format!(" ({label} {n})")
         };
         let candidate = out_dir.join(format!("{stem}{suffix}.{ext}"));
         if candidate != input && !candidate.exists() {

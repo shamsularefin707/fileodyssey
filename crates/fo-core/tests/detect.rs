@@ -229,3 +229,41 @@ fn svg_with_comment_and_doctype_before_root() {
     );
     assert_eq!(detect_kind(&p).unwrap(), FileKind::Image(ImageFormat::Svg));
 }
+
+#[test]
+fn qoi_by_magic() {
+    let d = TempDir::new().unwrap();
+    let p = write(&d, "x", b"qoif\0\0\0\x01\0\0\0\x01\x04\0");
+    assert_eq!(detect_kind(&p).unwrap(), FileKind::Image(ImageFormat::Qoi));
+}
+
+#[test]
+fn pnm_by_magic() {
+    let d = TempDir::new().unwrap();
+    let p = write(
+        &d,
+        "x",
+        b"P6\n2 2\n255\n\x01\x02\x03\x01\x02\x03\x01\x02\x03\x01\x02\x03",
+    );
+    assert_eq!(detect_kind(&p).unwrap(), FileKind::Image(ImageFormat::Pnm));
+}
+
+#[test]
+fn hdr_by_magic() {
+    let d = TempDir::new().unwrap();
+    let p = write(
+        &d,
+        "x",
+        b"#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 1 +X 1\n\x80\x80\x80\x80",
+    );
+    assert_eq!(detect_kind(&p).unwrap(), FileKind::Image(ImageFormat::Hdr));
+}
+
+#[test]
+fn tga_by_extension() {
+    let d = TempDir::new().unwrap();
+    let mut buf = vec![0u8, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 24, 0];
+    buf.extend_from_slice(&[0x10, 0x20, 0x30]);
+    let p = write(&d, "pic.TGA", &buf);
+    assert_eq!(detect_kind(&p).unwrap(), FileKind::Image(ImageFormat::Tga));
+}

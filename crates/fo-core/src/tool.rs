@@ -52,4 +52,16 @@ pub trait Tool: Send + Sync {
     fn info(&self) -> ToolInfo;
     fn accepts(&self, kind: &FileKind) -> bool;
     fn run(&self, input: &Path, ctx: &Ctx) -> Result<ToolOutput, ToolError>;
+
+    /// A combining tool turns all of a job's inputs into one output
+    /// (e.g. images → one PDF) instead of one output per input.
+    fn combines(&self) -> bool {
+        false
+    }
+
+    fn run_many(&self, _inputs: &[PathBuf], _ctx: &Ctx) -> Result<ToolOutput, ToolError> {
+        Err(ToolError::Failed(
+            "This tool works on one file at a time".into(),
+        ))
+    }
 }

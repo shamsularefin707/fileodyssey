@@ -32,6 +32,12 @@ pub const REPORT_TEXT: &str = "Text matched";
 pub const REPORT_NOTES: &str = "Notes";
 pub const REPORT_NONE: &str = "Nothing was lost in this conversion.";
 pub const CLOSE: &str = "Close";
+pub const OPTIONS: &str = "Options";
+pub const HIDE_OPTIONS: &str = "Hide options";
+pub const SAME_FORMAT: &str = "Same format";
+pub const TEXT: &str = "Text";
+pub const COMBINE_PAGE: &str = "Page size";
+pub const COMBINE_RUN: &str = "Combine";
 pub const NO_FILES_YET: &str = "Nothing here yet. Drop a file into the pond to start.";
 
 pub fn tab_label(c: Category) -> &'static str {
@@ -60,4 +66,20 @@ pub fn running(pct: u32) -> String {
 
 pub fn failed(msg: &str) -> String {
     format!("Didn't finish: {msg}")
+}
+
+pub fn combine_title(n: usize) -> String {
+    format!("Combine {n} images into one PDF")
+}
+
+/// How a target extension is shown in the "to" menu.
+pub fn target_label(target: &str) -> String {
+    match target {
+        "same" => SAME_FORMAT.to_owned(),
+        "txt" => TEXT.to_owned(),
+        "jpg" => "JPEG".to_owned(),
+        "jxl" => "JPEG XL".to_owned(),
+        "tiff" => "TIFF".to_owned(),
+        other => other.to_uppercase(),
+    }
 }

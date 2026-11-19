@@ -10,9 +10,12 @@ pub struct AppState {
 }
 
 impl AppState {
-    /// Real tools are registered here from M2 onwards.
     pub fn new() -> Self {
-        let registry = Arc::new(Registry::new());
+        let mut registry = Registry::new();
+        for tool in fo_core::image::tools::image_tools() {
+            registry.register(tool);
+        }
+        let registry = Arc::new(registry);
         let workers = std::thread::available_parallelism()
             .map(|n| n.get().saturating_sub(1))
             .unwrap_or(1)
@@ -45,5 +48,16 @@ impl Placed {
 
     pub fn contains(&self, path: &str) -> bool {
         self.0.lock().expect("placed").contains(path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn app_state_registers_image_tools() {
+        let s = super::AppState::new();
+        for id in ["img.convert", "img.resize", "img.compress", "qr.read"] {
+            assert!(s.registry.get(id).is_some(), "{id} missing");
+        }
     }
 }
