@@ -263,3 +263,16 @@ fn unknown_target_fails_clearly() {
     .unwrap();
     assert_eq!(err, ToolError::Failed("Can't save images as .xyz".into()));
 }
+
+#[test]
+fn decode_notes_reach_the_report() {
+    let d = TempDir::new().unwrap();
+    let src = save(&d, "a.png", &gradient(4, 4));
+    let mut dec = decoded(&src);
+    dec.notes.push("Only the first of 3 pages was used".into());
+    let r = encode(&dec, "png", &EncodeOpts::default(), &d.path().join("o.png")).unwrap();
+    assert!(
+        has_warning(&r, "Only the first of 3 pages was used"),
+        "{r:?}"
+    );
+}

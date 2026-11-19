@@ -15,10 +15,11 @@ ravif = { version = "0.13", default-features = false }
 rgb = "0.8"
 webp = { version = "0.3", default-features = false }
 jpeg-encoder = "0.7"
+tiff = "0.11.2"
 oxipng = { version = "10", default-features = false }
 jxl-oxide = { version = "0.12", default-features = false, features = ["image"] }
 zune-jpegxl = "0.5"
-resvg = { version = "0.50", default-features = false }
+resvg = { version = "0.50", default-features = false, features = ["text", "system-fonts", "raster-images"] }
 psd = "0.3"
 rawler = "0.8"
 rxing = { version = "0.9", default-features = false, features = ["encoding_rs", "decoders", "encoders", "full_barcode_format_support", "multi_barcode_readers"] }

@@ -1,8 +1,8 @@
 //! The image tools offered in the UI.
 
-use super::decode::{decodable, decode, Decoded};
+use super::decode::{check_frames, check_size, decodable, decode, Decoded};
 use super::encode::{encode, EncodeOpts, WRITE_TARGETS};
-use super::ops::{encode_to_size, optimise_png, resize, ResizeSpec};
+use super::ops::{encode_to_size, optimise_png, resize, target_size, ResizeSpec};
 use crate::detect::detect_kind;
 use crate::tool::{Ctx, Tool, ToolError, ToolOutput};
 use fo_types::*;
@@ -62,23 +62,32 @@ impl Tool for ImagesToPdf {
     }
 
     fn run_many(&self, inputs: &[PathBuf], ctx: &Ctx) -> Result<ToolOutput, ToolError> {
-        use super::pdf::{write_pdf, PageSize, PdfImage};
+        use super::pdf::{write_pdf, PageSize, PdfPage};
         let page = match ctx.options.get("page").and_then(|v| v.as_str()) {
             Some("a4") => PageSize::A4,
             Some("letter") => PageSize::Letter,
             _ => PageSize::Image,
         };
-        let mut decoded = Vec::with_capacity(inputs.len());
         let mut warnings = vec![];
-        for (i, path) in inputs.iter().enumerate() {
+        let out = out_path(ctx, "pdf");
+        // Decode one image per page as it is written; only one is in memory.
+        write_pdf(inputs.len(), page, &out, |i| {
             if ctx.cancel.is_cancelled() {
                 return Err(ToolError::Cancelled);
             }
-            let d = decode(path, &detect_kind(path)?)?;
+            let path = &inputs[i];
             let name = path
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_default();
+            // Errors name the file: every event of a combine job is shown on
+            // the first file's row.
+            let named = |e: ToolError| match e {
+                ToolError::Failed(m) => ToolError::Failed(format!("{name}: {m}")),
+                other => other,
+            };
+            let kind = detect_kind(path).map_err(|e| named(e.into()))?;
+            let mut d = decode(path, &kind).map_err(named)?;
             if d.frames.len() > 1 {
                 warnings.push(format!(
                     "{name}: only the first of {} frames was used",
@@ -91,19 +100,13 @@ impl Tool for ImagesToPdf {
                     d.bit_depth
                 ));
             }
-            decoded.push(d);
+            warnings.extend(d.notes.iter().map(|n| format!("{name}: {n}")));
             (ctx.progress)((i + 1) as f32 / (inputs.len() + 1) as f32);
-        }
-        let pages: Vec<PdfImage> = decoded
-            .iter()
-            .map(|d| PdfImage {
-                image: d.first(),
-                jpeg: d.source_bytes.clone(),
+            Ok(PdfPage {
+                image: d.frames.swap_remove(0).image,
+                jpeg: d.source_bytes,
             })
-            .collect();
-        let out = out_path(ctx, "pdf");
-        write_pdf(&pages, page, &out)
-            .map_err(|e| ToolError::Failed(format!("Couldn't save the PDF: {e}")))?;
+        })?;
         let n = inputs.len() as u64;
         Ok(ToolOutput {
             files: vec![(out, s("pdf"))],
@@ -111,7 +114,7 @@ impl Tool for ImagesToPdf {
                 metrics: vec![Metric {
                     name: s("Pages"),
                     before: n,
-                    after: pages.len() as u64,
+                    after: n,
                 }],
                 text_similarity: None,
                 warnings,
@@ -339,6 +342,10 @@ impl Tool for ImageTool {
                     },
                 };
                 let (ow, oh) = (d.first().width(), d.first().height());
+                // Check the result size before allocating it.
+                let (tw, th) = target_size(ow, oh, &spec);
+                check_size(tw, th)?;
+                check_frames(tw, th, d.frames.len())?;
                 let resized = Decoded {
                     frames: d
                         .frames

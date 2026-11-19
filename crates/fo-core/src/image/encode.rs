@@ -2,7 +2,7 @@
 //! carried over (spec §7: nothing is lost silently).
 
 use super::decode::Decoded;
-use super::pdf::{write_pdf, PageSize, PdfImage};
+use super::pdf::{write_pdf, PageSize, PdfPage};
 use crate::tool::ToolError;
 use fo_types::{FidelityReport, Metric};
 use image::codecs::gif::{GifEncoder, Repeat};
@@ -45,7 +45,7 @@ impl<'a> Notes<'a> {
         let f = d.first();
         Self {
             d,
-            warnings: vec![],
+            warnings: d.notes.clone(),
             frames_out: 1,
             depth_out: 8,
             size_out: (f.width(), f.height()),
@@ -369,16 +369,13 @@ pub fn encode(
                 n.depth8();
                 n.no_metadata("pdf");
             }
-            let pages: Vec<PdfImage> = d
-                .frames
-                .iter()
-                .map(|f| PdfImage {
-                    image: &f.image,
+            n.frames_out = d.frames.len();
+            write_pdf(d.frames.len(), PageSize::Image, out, |i| {
+                Ok(PdfPage {
+                    image: d.frames[i].image.clone(),
                     jpeg: jpeg.clone(),
                 })
-                .collect();
-            n.frames_out = pages.len();
-            write_pdf(&pages, PageSize::Image, out).map_err(failed)?;
+            })?;
         }
         other => return Err(ToolError::Failed(format!("Can't save images as .{other}"))),
     }

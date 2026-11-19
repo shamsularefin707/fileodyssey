@@ -91,3 +91,15 @@ fn combine_missing_input_fails() {
         .collect();
     assert_eq!(names.len(), 1, "{names:?}");
 }
+
+#[test]
+fn combine_failure_names_the_bad_file() {
+    let d = TempDir::new().unwrap();
+    let bad = d.path().join("c.png");
+    std::fs::write(&bad, b"\x89PNG\r\n\x1a\nnot really").unwrap();
+    let inputs = vec![pic(&d, "a.png", 10, 10), bad.to_string_lossy().into()];
+    match &events(inputs, d.path()).last().unwrap().status {
+        JobStatus::Failed { message } => assert!(message.starts_with("c.png: "), "{message}"),
+        other => panic!("{other:?}"),
+    }
+}

@@ -248,3 +248,22 @@ fn tools_offered_for_png_but_not_avif() {
     let convert = png.iter().find(|t| t.id == "img.convert").unwrap();
     assert!(convert.options.iter().any(|o| o.key == "quality"));
 }
+
+#[test]
+fn resize_to_an_unsafe_size_is_refused() {
+    let d = TempDir::new().unwrap();
+    let src = d.path().join("small.png");
+    noise(20, 20).save(&src).unwrap();
+    match run(
+        "img.resize",
+        &src,
+        "same",
+        serde_json::json!({"mode": "exact", "width": 30000, "height": 30000}),
+    ) {
+        JobStatus::Failed { message } => assert_eq!(
+            message,
+            "This image is too large to open safely (900 megapixels)"
+        ),
+        other => panic!("{other:?}"),
+    }
+}

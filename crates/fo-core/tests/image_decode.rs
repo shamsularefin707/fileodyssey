@@ -173,3 +173,116 @@ fn avif_not_decodable() {
     assert!(!decodable(&FileKind::Pdf));
     assert!(decodable(&img(ImageFormat::Png)));
 }
+
+#[test]
+fn animation_total_size_is_budgeted() {
+    use fo_core::image::decode::check_frames;
+    assert!(check_frames(1920, 1080, 100).is_ok());
+    let err = check_frames(10000, 10000, 4).err().unwrap();
+    assert_eq!(
+        err,
+        ToolError::Failed(
+            "This animation is too large to open safely (400 megapixels across 4 frames)".into()
+        )
+    );
+}
+
+#[test]
+fn cmyk_jpeg_is_not_passed_through() {
+    let d = TempDir::new().unwrap();
+    let p = d.path().join("cmyk.jpg");
+    let px: Vec<u8> = (0..16 * 16).flat_map(|i| [i as u8, 40, 200, 10]).collect();
+    jpeg_encoder::Encoder::new_file(&p, 90)
+        .unwrap()
+        .encode(&px, 16, 16, jpeg_encoder::ColorType::Cmyk)
+        .unwrap();
+    let dec = decode(&p, &img(ImageFormat::Jpeg)).unwrap();
+    assert!(
+        dec.source_bytes.is_none(),
+        "4-component JPEG must be re-encoded for PDF"
+    );
+    let rgb = save(
+        &d,
+        "rgb.jpg",
+        &DynamicImage::ImageRgb8(ImageBuffer::from_pixel(8, 8, Rgb([1, 2, 3]))),
+    );
+    assert!(decode(&rgb, &img(ImageFormat::Jpeg))
+        .unwrap()
+        .source_bytes
+        .is_some());
+}
+
+#[test]
+fn svg_embedded_raster_image_is_drawn() {
+    // 1×1 red PNG as a data URI, stretched over the whole drawing.
+    let d = TempDir::new().unwrap();
+    let mut png = Vec::new();
+    DynamicImage::ImageRgb8(ImageBuffer::from_pixel(1, 1, Rgb([255, 0, 0])))
+        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+        .unwrap();
+    let b64 = base64_encode(&png);
+    let p = d.path().join("img.svg");
+    std::fs::write(&p, format!(r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="10" height="10"><image width="10" height="10" xlink:href="data:image/png;base64,{b64}"/></svg>"#)).unwrap();
+    let dec = decode(&p, &img(ImageFormat::Svg)).unwrap();
+    let px = dec.frames[0].image.to_rgba8();
+    assert!(
+        px.get_pixel(5, 5).0[0] > 200 && px.get_pixel(5, 5).0[3] > 200,
+        "{:?}",
+        px.get_pixel(5, 5)
+    );
+}
+
+#[test]
+fn svg_text_is_drawn_or_reported() {
+    let d = TempDir::new().unwrap();
+    let p = d.path().join("t.svg");
+    std::fs::write(&p, r#"<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60"><text x="10" y="40" font-size="32" fill="black">Hello</text></svg>"#).unwrap();
+    let dec = decode(&p, &img(ImageFormat::Svg)).unwrap();
+    let inked = dec.frames[0]
+        .image
+        .to_rgba8()
+        .pixels()
+        .filter(|p| p.0[3] > 0)
+        .count();
+    assert!(
+        inked > 50 || dec.notes.iter().any(|n| n.contains("text")),
+        "text vanished silently"
+    );
+}
+
+#[test]
+fn multipage_tiff_reports_extra_pages() {
+    use tiff::encoder::{colortype, TiffEncoder};
+    let d = TempDir::new().unwrap();
+    let p = d.path().join("pages.tiff");
+    let mut enc = TiffEncoder::new(std::fs::File::create(&p).unwrap()).unwrap();
+    for v in [10u8, 200, 90] {
+        enc.write_image::<colortype::RGB8>(4, 4, &[v; 48]).unwrap();
+    }
+    drop(enc);
+    let dec = decode(&p, &img(ImageFormat::Tiff)).unwrap();
+    assert!(
+        dec.notes
+            .iter()
+            .any(|n| n == "Only the first of 3 pages was used"),
+        "{:?}",
+        dec.notes
+    );
+}
+
+fn base64_encode(data: &[u8]) -> String {
+    const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for c in data.chunks(3) {
+        let b = [c[0], *c.get(1).unwrap_or(&0), *c.get(2).unwrap_or(&0)];
+        let n = (b[0] as u32) << 16 | (b[1] as u32) << 8 | b[2] as u32;
+        for i in 0..4 {
+            if i <= c.len() {
+                out.push(T[(n >> (18 - 6 * i) & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}

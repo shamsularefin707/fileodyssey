@@ -2,13 +2,14 @@
 //! JPEG sources are embedded byte-for-byte (DCTDecode); everything else is
 //! stored losslessly with Flate, with an SMask for transparency.
 
+use crate::tool::ToolError;
 use image::DynamicImage;
 use pdf_writer::{Content, Filter, Finish, Name, Pdf, Rect, Ref};
 use std::path::Path;
 use std::sync::Arc;
 
-pub struct PdfImage<'a> {
-    pub image: &'a DynamicImage,
+pub struct PdfPage {
+    pub image: DynamicImage,
     /// Original JPEG bytes to embed unchanged, when the source was a JPEG.
     pub jpeg: Option<Arc<[u8]>>,
 }
@@ -37,7 +38,14 @@ fn zlib(data: &[u8]) -> Vec<u8> {
     miniz_oxide::deflate::compress_to_vec_zlib(data, 6)
 }
 
-pub fn write_pdf(pages: &[PdfImage], size: PageSize, out: &Path) -> std::io::Result<()> {
+/// Writes `count` pages, asking `next_page(i)` for each one just before it is
+/// written, so only one decoded image is in memory at a time.
+pub fn write_pdf(
+    count: usize,
+    size: PageSize,
+    out: &Path,
+    mut next_page: impl FnMut(usize) -> Result<PdfPage, ToolError>,
+) -> Result<(), ToolError> {
     let mut pdf = Pdf::new();
     let mut next = 1;
     let mut alloc = || {
@@ -47,17 +55,17 @@ pub fn write_pdf(pages: &[PdfImage], size: PageSize, out: &Path) -> std::io::Res
     };
     let catalog = alloc();
     let tree = alloc();
-    let ids: Vec<(Ref, Ref, Ref, Ref)> = pages
-        .iter()
+    let ids: Vec<(Ref, Ref, Ref, Ref)> = (0..count)
         .map(|_| (alloc(), alloc(), alloc(), alloc()))
         .collect();
 
     pdf.catalog(catalog).pages(tree);
     pdf.pages(tree)
         .kids(ids.iter().map(|i| i.0))
-        .count(pages.len() as i32);
+        .count(count as i32);
 
-    for (p, &(page_id, content_id, image_id, mask_id)) in pages.iter().zip(&ids) {
+    for (i, &(page_id, content_id, image_id, mask_id)) in ids.iter().enumerate() {
+        let p = next_page(i)?;
         let (iw, ih) = (p.image.width() as f32, p.image.height() as f32);
         let (pw, ph) = size.dims(iw, ih);
         // Fit inside the page with 10 mm margins (none for image-sized pages).
@@ -128,4 +136,5 @@ pub fn write_pdf(pages: &[PdfImage], size: PageSize, out: &Path) -> std::io::Res
         }
     }
     std::fs::write(out, pdf.finish())
+        .map_err(|e| ToolError::Failed(format!("Couldn't save the PDF: {e}")))
 }

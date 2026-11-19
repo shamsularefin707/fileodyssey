@@ -30,6 +30,8 @@ pub struct Decoded {
     /// Original file bytes, kept for JPEG sources so PDF output can embed
     /// them unchanged.
     pub source_bytes: Option<Arc<[u8]>>,
+    /// Things lost while reading (e.g. extra TIFF pages); copied into the report.
+    pub notes: Vec<String>,
 }
 
 impl Decoded {
@@ -47,7 +49,7 @@ fn unreadable(e: impl std::fmt::Display) -> ToolError {
     ToolError::Failed(format!("Couldn't read this image: {e}"))
 }
 
-fn check_size(w: u32, h: u32) -> Result<(), ToolError> {
+pub fn check_size(w: u32, h: u32) -> Result<(), ToolError> {
     let px = w as u64 * h as u64;
     if px > MAX_PIXELS {
         return Err(ToolError::Failed(format!(
@@ -86,6 +88,7 @@ fn single(
         has_alpha,
         source,
         source_bytes: None,
+        notes: vec![],
     }
 }
 
@@ -130,9 +133,58 @@ fn decode_still(path: &Path, format: ImageFormat) -> Result<Decoded, ToolError> 
     }
     let mut d = single(img, format, icc, exif);
     if format == ImageFormat::Jpeg && orientation == Orientation::NoTransforms {
-        d.source_bytes = std::fs::read(path).ok().map(Arc::from);
+        // Only 1- or 3-component JPEGs can be embedded in a PDF as DeviceGray/RGB.
+        let bytes = std::fs::read(path).ok();
+        if bytes
+            .as_deref()
+            .and_then(jpeg_components)
+            .is_some_and(|c| c == 1 || c == 3)
+        {
+            d.source_bytes = bytes.map(Arc::from);
+        }
+    }
+    if format == ImageFormat::Tiff {
+        let pages = tiff_pages(path);
+        if pages > 1 {
+            d.notes
+                .push(format!("Only the first of {pages} pages was used"));
+        }
     }
     Ok(d)
+}
+
+/// Number of colour components in a JPEG's frame header (SOFn).
+fn jpeg_components(b: &[u8]) -> Option<u8> {
+    let mut i = 2;
+    while i + 9 < b.len() {
+        if b[i] != 0xFF {
+            return None;
+        }
+        let m = b[i + 1];
+        let len = u16::from_be_bytes([b[i + 2], b[i + 3]]) as usize;
+        if matches!(m, 0xC0..=0xC3 | 0xC5..=0xC7 | 0xC9..=0xCB | 0xCD..=0xCF) {
+            return b.get(i + 9).copied();
+        }
+        i += 2 + len;
+    }
+    None
+}
+
+fn tiff_pages(path: &Path) -> usize {
+    let Ok(file) = std::fs::File::open(path) else {
+        return 1;
+    };
+    let Ok(mut dec) = tiff::decoder::Decoder::new(BufReader::new(file)) else {
+        return 1;
+    };
+    let mut n = 1;
+    while dec.more_images() && n < 10_000 {
+        if dec.next_image().is_err() {
+            break;
+        }
+        n += 1;
+    }
+    n
 }
 
 fn decode_animated(path: &Path, format: ImageFormat, gif: bool) -> Result<Decoded, ToolError> {
@@ -144,7 +196,9 @@ fn decode_animated(path: &Path, format: ImageFormat, gif: bool) -> Result<Decode
         d.set_limits(limits()).map_err(unreadable)?;
         collect_frames(d.into_frames())?
     } else {
-        let d = image::codecs::webp::WebPDecoder::new(Cursor::new(&bytes)).map_err(unreadable)?;
+        let mut d =
+            image::codecs::webp::WebPDecoder::new(Cursor::new(&bytes)).map_err(unreadable)?;
+        d.set_limits(limits()).map_err(unreadable)?;
         if !d.has_animation() {
             return decode_still(path, format);
         }
@@ -159,7 +213,21 @@ fn decode_animated(path: &Path, format: ImageFormat, gif: bool) -> Result<Decode
         has_alpha,
         source: format,
         source_bytes: None,
+        notes: vec![],
     })
+}
+
+/// Every frame of an animation is held as a full-canvas image, so the total
+/// across frames must stay within the same pixel budget as a single image.
+pub fn check_frames(w: u32, h: u32, n: usize) -> Result<(), ToolError> {
+    let total = w as u64 * h as u64 * n as u64;
+    if total > MAX_PIXELS {
+        return Err(ToolError::Failed(format!(
+            "This animation is too large to open safely ({} megapixels across {n} frames)",
+            total / 1_000_000
+        )));
+    }
+    Ok(())
 }
 
 fn collect_frames(frames: image::Frames<'_>) -> Result<Vec<Frame>, ToolError> {
@@ -171,6 +239,8 @@ fn collect_frames(frames: image::Frames<'_>) -> Result<Vec<Frame>, ToolError> {
                 "This animation has more than {MAX_FRAMES} frames, which is too many to open safely"
             )));
         }
+        let (fw, fh) = f.buffer().dimensions();
+        check_frames(fw, fh, out.len() + 1)?;
         let (n, d) = f.delay().numer_denom_ms();
         let delay_ms = n.checked_div(d).unwrap_or(0);
         out.push(Frame {
@@ -187,7 +257,16 @@ fn collect_frames(frames: image::Frames<'_>) -> Result<Vec<Frame>, ToolError> {
 fn decode_svg(path: &Path) -> Result<Decoded, ToolError> {
     use resvg::{tiny_skia, usvg};
     let data = std::fs::read(path).map_err(unreadable)?;
-    let tree = usvg::Tree::from_data(&data, &usvg::Options::default()).map_err(unreadable)?;
+    let mut opts = usvg::Options {
+        resources_dir: path.parent().map(|p| p.to_path_buf()),
+        ..Default::default()
+    };
+    let fonts = opts.fontdb_mut();
+    fonts.load_system_fonts();
+    #[cfg(target_os = "android")]
+    fonts.load_fonts_dir("/system/fonts");
+    let no_fonts = fonts.is_empty();
+    let tree = usvg::Tree::from_data(&data, &opts).map_err(unreadable)?;
     let size = tree.size().to_int_size();
     check_size(size.width(), size.height())?;
     let mut pixmap = tiny_skia::Pixmap::new(size.width(), size.height())
@@ -205,12 +284,12 @@ fn decode_svg(path: &Path) -> Result<Decoded, ToolError> {
     }
     let img = image::RgbaImage::from_raw(size.width(), size.height(), rgba)
         .ok_or_else(|| unreadable("bad size"))?;
-    Ok(single(
-        DynamicImage::ImageRgba8(img),
-        ImageFormat::Svg,
-        None,
-        None,
-    ))
+    let mut d = single(DynamicImage::ImageRgba8(img), ImageFormat::Svg, None, None);
+    if no_fonts && String::from_utf8_lossy(&data).contains("<text") {
+        d.notes
+            .push("Text in this drawing couldn't be drawn: no fonts were found".into());
+    }
+    Ok(d)
 }
 
 fn decode_psd(path: &Path) -> Result<Decoded, ToolError> {
@@ -228,8 +307,15 @@ fn decode_psd(path: &Path) -> Result<Decoded, ToolError> {
 }
 
 fn decode_raw(path: &Path) -> Result<Decoded, ToolError> {
-    let raw = rawler::decode_file(path).map_err(unreadable)?;
-    check_size(raw.width as u32, raw.height as u32)?;
+    // Read the dimensions without decoding the sensor data, then decode.
+    let src = rawler::rawsource::RawSource::new(path).map_err(unreadable)?;
+    let decoder = rawler::get_decoder(&src).map_err(unreadable)?;
+    let params = rawler::decoders::RawDecodeParams::default();
+    let header = decoder.raw_image(&src, &params, true).map_err(unreadable)?;
+    check_size(header.width as u32, header.height as u32)?;
+    let raw = decoder
+        .raw_image(&src, &params, false)
+        .map_err(unreadable)?;
     let img = rawler::imgop::develop::RawDevelop::default()
         .develop_intermediate(&raw)
         .map_err(unreadable)?
