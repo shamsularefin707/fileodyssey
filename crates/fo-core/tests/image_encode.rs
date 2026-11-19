@@ -13,7 +13,7 @@ fn save(dir: &TempDir, name: &str, im: &DynamicImage) -> PathBuf {
     p
 }
 
-fn decoded(path: &PathBuf) -> fo_core::image::decode::Decoded {
+fn decoded(path: &std::path::Path) -> fo_core::image::decode::Decoded {
     decode(path, &detect_kind(path).unwrap()).unwrap()
 }
 

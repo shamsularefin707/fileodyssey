@@ -126,7 +126,7 @@ fn decode_still(path: &Path, format: ImageFormat) -> Result<Decoded, ToolError> 
     let mut img = DynamicImage::from_decoder(dec).map_err(unreadable)?;
     img.apply_orientation(orientation);
     if let Some(e) = exif.as_mut() {
-        Orientation::remove_from_exif_chunk(e);
+        let _ = Orientation::remove_from_exif_chunk(e);
     }
     let mut d = single(img, format, icc, exif);
     if format == ImageFormat::Jpeg && orientation == Orientation::NoTransforms {
@@ -172,7 +172,7 @@ fn collect_frames(frames: image::Frames<'_>) -> Result<Vec<Frame>, ToolError> {
             )));
         }
         let (n, d) = f.delay().numer_denom_ms();
-        let delay_ms = if d == 0 { 0 } else { n / d };
+        let delay_ms = n.checked_div(d).unwrap_or(0);
         out.push(Frame {
             image: DynamicImage::ImageRgba8(f.into_buffer()),
             delay_ms,
