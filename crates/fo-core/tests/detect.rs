@@ -200,3 +200,32 @@ fn missing_file_is_io_error() {
     let err = detect_kind(&d.path().join("nope.pdf")).unwrap_err();
     assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
 }
+
+#[test]
+fn markdown_with_inline_svg_stays_markdown() {
+    let d = TempDir::new().unwrap();
+    let p = write(&d, "README.md", b"# Logo\n\n<svg width=\"10\"></svg>\n");
+    assert_eq!(detect_kind(&p).unwrap(), FileKind::Markdown);
+}
+
+#[test]
+fn html_with_inline_svg_stays_html() {
+    let d = TempDir::new().unwrap();
+    let p = write(
+        &d,
+        "page",
+        b"<!doctype html><html><body><svg></svg></body></html>",
+    );
+    assert_eq!(detect_kind(&p).unwrap(), FileKind::Html);
+}
+
+#[test]
+fn svg_with_comment_and_doctype_before_root() {
+    let d = TempDir::new().unwrap();
+    let p = write(
+        &d,
+        "x",
+        b"<?xml version=\"1.0\"?>\n<!-- made by hand -->\n<!DOCTYPE svg>\n<svg/>",
+    );
+    assert_eq!(detect_kind(&p).unwrap(), FileKind::Image(ImageFormat::Svg));
+}

@@ -1,5 +1,5 @@
 use fo_types::*;
-use fo_ui::state::{apply_event, merge_files, visible_tabs, JobRow};
+use fo_ui::state::{apply_event, can_run, merge_files, visible_tabs, JobRow};
 
 fn file(path: &str) -> DetectedFile {
     DetectedFile {
@@ -88,4 +88,11 @@ fn late_running_event_never_overwrites_finished() {
         ev("j", "/a.pdf", JobStatus::Running { fraction: 0.9 }),
     );
     assert_eq!(jobs[0].status, JobStatus::Cancelled);
+}
+
+#[test]
+fn run_needs_an_output_folder_and_something_to_run() {
+    assert!(!can_run("", 2));
+    assert!(!can_run("/home/you/Documents/FileOdyssey", 0));
+    assert!(can_run("/home/you/Documents/FileOdyssey", 1));
 }

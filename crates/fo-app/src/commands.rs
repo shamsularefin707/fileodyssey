@@ -60,6 +60,14 @@ pub fn default_out_dir_impl(documents: &Path) -> Result<String, String> {
     Ok(dir.to_string_lossy().into_owned())
 }
 
+pub fn check_openable(placed: &crate::state::Placed, path: &str) -> Result<(), String> {
+    if placed.contains(path) {
+        Ok(())
+    } else {
+        Err("Only results made in this session can be opened".into())
+    }
+}
+
 #[tauri::command]
 pub fn platform() -> Platform {
     current_platform()
@@ -112,7 +120,11 @@ pub async fn pick_folder(app: AppHandle) -> Option<String> {
 
 #[tauri::command]
 pub fn start_job(app: AppHandle, state: State<'_, AppState>, req: JobRequest) -> String {
+    let placed = state.placed.clone();
     let sink = Arc::new(move |ev: JobEvent| {
+        if let fo_types::JobStatus::Done { outputs, .. } = &ev.status {
+            placed.record(outputs);
+        }
         let _ = app.emit(JOB_EVENT, ev);
     });
     state.runner.submit(req, sink)
@@ -124,14 +136,16 @@ pub fn cancel_job(state: State<'_, AppState>, job_id: String) {
 }
 
 #[tauri::command]
-pub fn open_path(app: AppHandle, path: String) -> Result<(), String> {
+pub fn open_path(app: AppHandle, state: State<'_, AppState>, path: String) -> Result<(), String> {
+    check_openable(&state.placed, &path)?;
     app.opener()
         .open_path(path, None::<&str>)
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn reveal_path(app: AppHandle, path: String) -> Result<(), String> {
+pub fn reveal_path(app: AppHandle, state: State<'_, AppState>, path: String) -> Result<(), String> {
+    check_openable(&state.placed, &path)?;
     app.opener()
         .reveal_item_in_dir(path)
         .map_err(|e| e.to_string())
@@ -164,6 +178,37 @@ mod tests {
         let out = default_out_dir_impl(d.path()).unwrap();
         assert_eq!(out, d.path().join("FileOdyssey").to_string_lossy());
         assert!(d.path().join("FileOdyssey").is_dir());
+    }
+
+    #[test]
+    fn csp_allows_wasm_ui() {
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let csp = conf["app"]["security"]["csp"].as_str().unwrap();
+        let script = csp
+            .split(';')
+            .map(str::trim)
+            .find(|d| d.starts_with("script-src"))
+            .expect("script-src");
+        assert!(
+            script.contains("'self'") && script.contains("'wasm-unsafe-eval'"),
+            "{script}"
+        );
+        assert!(
+            !csp.contains("http://") || csp.contains("http://ipc.localhost"),
+            "no remote origins: {csp}"
+        );
+    }
+
+    #[test]
+    fn only_results_from_this_session_can_be_opened() {
+        let placed = crate::state::Placed::default();
+        placed.record(&["/out/a (converted).docx".to_string()]);
+        assert!(check_openable(&placed, "/out/a (converted).docx").is_ok());
+        assert_eq!(
+            check_openable(&placed, "C:\\Windows\\System32\\calc.exe").unwrap_err(),
+            "Only results made in this session can be opened"
+        );
     }
 
     #[test]

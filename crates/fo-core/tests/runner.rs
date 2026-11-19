@@ -51,9 +51,29 @@ impl Tool for TestTool {
     }
 }
 
+/// Panics on every input, like a decoder choking on a malformed file.
+struct PanicTool;
+
+impl Tool for PanicTool {
+    fn info(&self) -> ToolInfo {
+        ToolInfo {
+            id: "test.panic".into(),
+            ..TestTool.info()
+        }
+    }
+    fn accepts(&self, _: &FileKind) -> bool {
+        true
+    }
+    fn run(&self, _: &Path, ctx: &Ctx) -> Result<ToolOutput, ToolError> {
+        std::fs::write(ctx.work_dir.join("half.txt"), "x")?;
+        panic!("decoder exploded");
+    }
+}
+
 fn setup() -> (TempDir, Runner) {
     let mut reg = Registry::new();
     reg.register(Arc::new(TestTool));
+    reg.register(Arc::new(PanicTool));
     (TempDir::new().unwrap(), Runner::new(Arc::new(reg), 2))
 }
 
@@ -213,4 +233,92 @@ fn registry_filters_by_kind_and_platform() {
         .is_empty());
     assert!(reg.get("test.upper").is_some());
     assert!(reg.get("nope").is_none());
+}
+
+#[test]
+fn panicking_tool_fails_cleanly_and_pool_survives() {
+    let (d, runner) = setup();
+    let input = d.path().join("a.md");
+    std::fs::write(&input, "x").unwrap();
+    for _ in 0..3 {
+        let mut r = req(&input, d.path(), serde_json::json!({}));
+        r.tool_id = "test.panic".into();
+        let evs = run(&runner, r, None);
+        assert_eq!(
+            evs.last().unwrap().status,
+            JobStatus::Failed {
+                message: "The tool crashed on this file".into()
+            }
+        );
+    }
+    assert_eq!(entries(d.path()), vec!["a.md"]);
+    // Both workers must still be alive.
+    let evs = run(&runner, req(&input, d.path(), serde_json::json!({})), None);
+    assert!(matches!(evs.last().unwrap().status, JobStatus::Done { .. }));
+}
+
+#[test]
+fn empty_or_relative_out_dir_is_refused() {
+    let (d, runner) = setup();
+    let input = d.path().join("a.md");
+    std::fs::write(&input, "x").unwrap();
+    for out in ["", "relative/dir"] {
+        let mut r = req(&input, d.path(), serde_json::json!({}));
+        r.out_dir = out.into();
+        let evs = run(&runner, r, None);
+        assert_eq!(
+            evs.last().unwrap().status,
+            JobStatus::Failed {
+                message: "Choose a folder to save results in".into()
+            }
+        );
+    }
+    assert!(!Path::new("relative").exists());
+}
+
+#[test]
+fn out_dir_same_as_input_dir_keeps_input() {
+    let (d, runner) = setup();
+    let input = d.path().join("রিপোর্ট ফাইল.md");
+    std::fs::write(&input, "x").unwrap();
+    let a = run(&runner, req(&input, d.path(), serde_json::json!({})), None);
+    let b = run(&runner, req(&input, d.path(), serde_json::json!({})), None);
+    assert_eq!(a.last().unwrap().input, input.to_string_lossy());
+    assert_eq!(std::fs::read_to_string(&input).unwrap(), "x");
+    assert_eq!(
+        entries(d.path()),
+        vec![
+            "রিপোর্ট ফাইল (converted 2).txt",
+            "রিপোর্ট ফাইল (converted).txt",
+            "রিপোর্ট ফাইল.md"
+        ]
+    );
+    assert!(matches!(b.last().unwrap().status, JobStatus::Done { .. }));
+}
+
+#[test]
+fn concurrent_placement_never_overwrites() {
+    use fo_core::runner::place_output;
+    for _ in 0..30 {
+        let d = TempDir::new().unwrap();
+        let input = d.path().join("a.md");
+        let handles: Vec<_> = (0..8)
+            .map(|i| {
+                let src = d.path().join(format!("src{i}.tmp"));
+                std::fs::write(&src, format!("{i}")).unwrap();
+                let (input, out) = (input.clone(), d.path().to_path_buf());
+                std::thread::spawn(move || place_output(&src, &input, &out, "txt").unwrap())
+            })
+            .collect();
+        let mut outs: Vec<String> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+        outs.sort();
+        outs.dedup();
+        assert_eq!(outs.len(), 8, "two jobs claimed the same name");
+        let mut contents: Vec<String> = outs
+            .iter()
+            .map(|o| std::fs::read_to_string(o).unwrap())
+            .collect();
+        contents.sort();
+        assert_eq!(contents, (0..8).map(|i| i.to_string()).collect::<Vec<_>>());
+    }
 }

@@ -143,8 +143,15 @@ fn from_text(buf: &[u8], ext: &str) -> FileKind {
     if text.trim_start().starts_with("{\\rtf") {
         return FileKind::Rtf;
     }
-    if text.contains("<svg") {
-        return FileKind::Image(ImageFormat::Svg);
+    match ext {
+        "md" | "markdown" => return FileKind::Markdown,
+        "html" | "htm" | "xhtml" => return FileKind::Html,
+        _ => {}
+    }
+    match root_element(text) {
+        Some(r) if r.starts_with("<svg") => return FileKind::Image(ImageFormat::Svg),
+        Some(r) if r.to_ascii_lowercase().starts_with("<html") => return FileKind::Html,
+        _ => {}
     }
     match ext {
         "md" | "markdown" => FileKind::Markdown,
@@ -152,5 +159,32 @@ fn from_text(buf: &[u8], ext: &str) -> FileKind {
         "csv" => FileKind::Csv,
         "json" => FileKind::Json,
         _ => FileKind::Text,
+    }
+}
+
+/// The first element tag, skipping the XML declaration, comments and doctype.
+/// `<!doctype html>` itself counts as an HTML root.
+fn root_element(text: &str) -> Option<&str> {
+    let mut rest = text.trim_start_matches('\u{feff}').trim_start();
+    loop {
+        if !rest.starts_with('<') {
+            return None;
+        }
+        let lower: String = rest
+            .chars()
+            .take(15)
+            .collect::<String>()
+            .to_ascii_lowercase();
+        if lower.starts_with("<!doctype html") {
+            return Some("<html");
+        }
+        let end = if rest.starts_with("<!--") {
+            rest.find("-->").map(|i| i + 3)?
+        } else if rest.starts_with("<?") || rest.starts_with("<!") {
+            rest.find('>').map(|i| i + 1)?
+        } else {
+            return Some(rest);
+        };
+        rest = rest[end..].trim_start();
     }
 }

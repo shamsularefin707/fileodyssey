@@ -6,6 +6,8 @@ use crate::registry::Registry;
 use crate::tool::{CancelToken, Ctx, ToolError};
 use fo_types::{JobEvent, JobRequest, JobStatus};
 use std::collections::HashMap;
+use std::fs::{File, OpenOptions};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
@@ -119,6 +121,9 @@ fn run_one(registry: &Registry, w: &Work) -> JobStatus {
         return failed(&format!("File not found: {name}"));
     }
     let out_dir = PathBuf::from(&w.req.out_dir);
+    if !out_dir.is_absolute() {
+        return failed("Choose a folder to save results in");
+    }
     if let Err(e) = std::fs::create_dir_all(&out_dir) {
         return failed(&format!("Can't use the output folder: {e}"));
     }
@@ -143,7 +148,10 @@ fn run_one(registry: &Registry, w: &Work) -> JobStatus {
         cancel: &w.cancel,
         progress: &progress,
     };
-    let result = tool.run(input, &ctx);
+    // A tool that panics (e.g. a decoder on a malformed file) must not kill
+    // the worker or leave the job hanging.
+    let result = catch_unwind(AssertUnwindSafe(|| tool.run(input, &ctx)))
+        .unwrap_or_else(|_| Err(ToolError::Failed("The tool crashed on this file".into())));
 
     let status = match result {
         _ if w.cancel.is_cancelled() => JobStatus::Cancelled,
@@ -166,16 +174,47 @@ fn place_outputs(
     out_dir: &Path,
     files: &[(PathBuf, String)],
 ) -> std::io::Result<Vec<String>> {
-    let mut placed = Vec::with_capacity(files.len());
-    for (src, ext) in files {
+    files
+        .iter()
+        .map(|(src, ext)| place_output(src, input, out_dir, ext))
+        .collect()
+}
+
+/// Move `src` to the next free `(converted N)` name in `out_dir`, claiming the
+/// name atomically so two jobs finishing together can never overwrite each
+/// other (a plain rename replaces an existing file on every platform).
+pub fn place_output(
+    src: &Path,
+    input: &Path,
+    out_dir: &Path,
+    ext: &str,
+) -> std::io::Result<String> {
+    loop {
         let dest = output_path(input, out_dir, ext);
-        if std::fs::rename(src, &dest).is_err() {
-            std::fs::copy(src, &dest)?;
-            std::fs::remove_file(src)?;
+        match std::fs::hard_link(src, &dest) {
+            Ok(()) => {
+                std::fs::remove_file(src)?;
+                return Ok(dest.to_string_lossy().into_owned());
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            // Filesystems without hard links (FAT/exFAT SD cards): claim the
+            // name with create_new, then copy into it.
+            Err(_) => match OpenOptions::new().write(true).create_new(true).open(&dest) {
+                Ok(mut out) => {
+                    let copied = File::open(src).and_then(|mut i| std::io::copy(&mut i, &mut out));
+                    if let Err(e) = copied {
+                        drop(out);
+                        let _ = std::fs::remove_file(&dest);
+                        return Err(e);
+                    }
+                    std::fs::remove_file(src)?;
+                    return Ok(dest.to_string_lossy().into_owned());
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(e) => return Err(e),
+            },
         }
-        placed.push(dest.to_string_lossy().into_owned());
     }
-    Ok(placed)
 }
 
 fn failed(message: &str) -> JobStatus {

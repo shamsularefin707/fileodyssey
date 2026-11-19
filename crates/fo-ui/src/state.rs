@@ -53,3 +53,9 @@ pub fn apply_event(jobs: &mut Vec<JobRow>, ev: JobEvent) {
         }),
     }
 }
+
+/// "Run all" needs a real output folder (never the app's working dir) and at
+/// least one file with a tool chosen.
+pub fn can_run(out_dir: &str, runnable: usize) -> bool {
+    !out_dir.trim().is_empty() && runnable > 0
+}

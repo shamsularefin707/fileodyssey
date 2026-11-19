@@ -1,6 +1,7 @@
 use super::{AppCtx, Entry};
 use crate::bridge::invoke;
 use fo_types::{JobRequest, ToolInfo};
+use fo_ui::state::can_run;
 use fo_ui::strings::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -142,6 +143,9 @@ pub fn FileList() -> impl IntoView {
     };
     let run_all = move |_| {
         let out_dir = ctx.out_dir.get_untracked();
+        if !can_run(&out_dir, 1) {
+            return;
+        }
         for (path, (tool, target)) in runnable() {
             let req = JobRequest {
                 tool_id: tool.id,
@@ -182,7 +186,7 @@ pub fn FileList() -> impl IntoView {
                     {SAVE_TO} " " <span class="dir">{move || ctx.out_dir.get()}</span> " "
                     <button class="link" on:click=change_dir>{CHANGE}</button>
                 </p>
-                <button class="primary" on:click=run_all disabled=move || runnable().is_empty()>{RUN_ALL}</button>
+                <button class="primary" on:click=run_all disabled=move || !can_run(&ctx.out_dir.get(), runnable().len())>{RUN_ALL}</button>
             </div>
         </Show>
     }
