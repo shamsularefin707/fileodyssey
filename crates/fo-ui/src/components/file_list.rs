@@ -1,7 +1,7 @@
 use super::{AppCtx, Entry};
 use crate::bridge::invoke;
-use fo_types::{JobRequest, ToolInfo};
-use fo_ui::state::can_run;
+use fo_types::{JobRequest, OptionKind, OptionSpec, ToolInfo};
+use fo_ui::state::{can_run, merged_options, visible_options};
 use fo_ui::strings::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -28,7 +28,7 @@ fn tools_in_tab(ctx: AppCtx, e: &Entry) -> Vec<ToolInfo> {
     let tab = ctx.tab.get();
     e.tools
         .iter()
-        .filter(|t| t.category == tab)
+        .filter(|t| t.category == tab && !t.combines)
         .cloned()
         .collect()
 }
@@ -54,25 +54,36 @@ fn Row(entry: Entry) -> impl IntoView {
     let ctx = expect_context::<AppCtx>();
     let path = entry.file.path.clone();
     let e = StoredValue::new(entry.clone());
-    let options = move || {
+    // One group per tool, so "PNG" under Convert and under Resize are distinct.
+    let groups = move || {
         tools_in_tab(ctx, &e.get_value())
             .into_iter()
-            .flat_map(|t| {
+            .map(|t| {
                 let targets = if t.targets.is_empty() {
                     vec![String::new()]
                 } else {
                     t.targets.clone()
                 };
-                targets.into_iter().map(move |target| {
-                    let value = format!("{}|{}", t.id, target);
-                    let label = if target.is_empty() {
-                        t.label.clone()
-                    } else {
-                        target.to_uppercase()
-                    };
-                    (value, label)
-                })
+                let items = targets
+                    .into_iter()
+                    .map(|target| {
+                        let value = format!("{}|{}", t.id, target);
+                        let label = if target.is_empty() {
+                            t.label.clone()
+                        } else {
+                            target_label(&target)
+                        };
+                        (value, label)
+                    })
+                    .collect::<Vec<_>>();
+                (t.label.clone(), items)
             })
+            .collect::<Vec<_>>()
+    };
+    let options = move || {
+        groups()
+            .into_iter()
+            .flat_map(|(_, items)| items)
             .collect::<Vec<_>>()
     };
     let current = move || choice_for(ctx, &e.get_value());
@@ -84,6 +95,16 @@ fn Row(entry: Entry) -> impl IntoView {
     let best_effort = move || current().is_some_and(|(t, _)| t.best_effort);
     let p_change = path.clone();
     let p_remove = path.clone();
+    let p_opts = path.clone();
+    let open = RwSignal::new(false);
+    let specs = move || current().map(|(t, _)| t.options).unwrap_or_default();
+    let target = move || current().and_then(|(_, tg)| tg).unwrap_or_default();
+    let values = {
+        let p = path.clone();
+        Signal::derive(move || merged_options(&specs(), &target(), ctx.options.get().get(&p)))
+    };
+    let has_options =
+        Signal::derive(move || !visible_options(&specs(), &target(), &values.get()).is_empty());
 
     view! {
         <li class="file-row">
@@ -108,14 +129,30 @@ fn Row(entry: Entry) -> impl IntoView {
                                 }
                             }
                         >
-                            {move || options().into_iter().map(|(v, l)| {
-                                let sel = v == selected_value();
-                                view! { <option value=v selected=sel>{l}</option> }
-                            }).collect_view()}
+                            {move || {
+                                let gs = groups();
+                                let single = gs.len() == 1;
+                                gs.into_iter().map(|(group, items)| {
+                                    let opts = items.into_iter().map(|(v, l)| {
+                                        let sel = v == selected_value();
+                                        view! { <option value=v selected=sel>{l}</option> }
+                                    }).collect_view();
+                                    if single {
+                                        opts.into_any()
+                                    } else {
+                                        view! { <optgroup label=group>{opts}</optgroup> }.into_any()
+                                    }
+                                }).collect_view()
+                            }}
                         </select>
                     </label>
                     <Show when=best_effort>
                         <span class="best-effort" title=BEST_EFFORT_HINT>{BEST_EFFORT}</span>
+                    </Show>
+                    <Show when=move || has_options.get()>
+                        <button class="link" aria-expanded=move || open.get().to_string() on:click=move |_| open.update(|o| *o = !*o)>
+                            {move || if open.get() { HIDE_OPTIONS } else { OPTIONS }}
+                        </button>
                     </Show>
                 </Show>
             </div>
@@ -127,7 +164,118 @@ fn Row(entry: Entry) -> impl IntoView {
             >
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
             </button>
+            <Show when=move || open.get() && has_options.get()>
+                <OptionsPanel path=p_opts.clone() specs=Signal::derive(specs) target=Signal::derive(target) values=values/>
+            </Show>
         </li>
+    }
+}
+
+/// Generic controls for a tool's `OptionSpec`s; values go into `ctx.options[path]`.
+#[component]
+fn OptionsPanel(
+    path: String,
+    specs: Signal<Vec<OptionSpec>>,
+    target: Signal<String>,
+    values: Signal<serde_json::Value>,
+) -> impl IntoView {
+    let ctx = expect_context::<AppCtx>();
+    let set = {
+        let path = path.clone();
+        move |key: String, v: serde_json::Value| {
+            ctx.options.update(|m| {
+                let entry = m
+                    .entry(path.clone())
+                    .or_insert_with(|| serde_json::json!({}));
+                if let Some(obj) = entry.as_object_mut() {
+                    obj.insert(key, v);
+                }
+            });
+        }
+    };
+    view! {
+        <div class="options" role="group" aria-label=OPTIONS>
+            {move || {
+                let all = specs.get();
+                let vals = values.get();
+                visible_options(&all, &target.get(), &vals)
+                    .into_iter()
+                    .cloned()
+                    .map(|o| control(o, &vals, set.clone()))
+                    .collect_view()
+            }}
+        </div>
+    }
+}
+
+fn control(
+    o: OptionSpec,
+    vals: &serde_json::Value,
+    set: impl Fn(String, serde_json::Value) + Clone + 'static,
+) -> AnyView {
+    let key = o.key.clone();
+    let current = vals.get(&key).cloned().unwrap_or(serde_json::Value::Null);
+    let id = format!("opt-{key}");
+    let for_id = id.clone();
+    match o.kind {
+        OptionKind::Slider {
+            min,
+            max,
+            step,
+            unit,
+            ..
+        } => {
+            let v = current.as_u64().unwrap_or(min as u64);
+            view! {
+                <label class="opt" for=for_id>
+                    <span>{o.label}</span>
+                    <input id=id type="range" min=min max=max step=step prop:value=v.to_string()
+                        on:input=move |ev| set(key.clone(), event_target_value(&ev).parse::<u64>().unwrap_or(v).into())/>
+                    <output>{v} {unit}</output>
+                </label>
+            }
+            .into_any()
+        }
+        OptionKind::Number { min, max, unit, .. } => {
+            let v = current.as_u64().unwrap_or(min as u64);
+            view! {
+                <label class="opt" for=for_id>
+                    <span>{o.label}</span>
+                    <input id=id type="number" min=min max=max prop:value=v.to_string()
+                        on:change=move |ev| {
+                            let n = event_target_value(&ev).parse::<u64>().unwrap_or(v).clamp(min as u64, max as u64);
+                            set(key.clone(), n.into())
+                        }/>
+                    <span class="unit">{unit}</span>
+                </label>
+            }
+            .into_any()
+        }
+        OptionKind::Toggle { .. } => {
+            let v = current.as_bool().unwrap_or(false);
+            view! {
+                <label class="opt toggle" for=for_id>
+                    <input id=id type="checkbox" prop:checked=v on:change=move |ev| set(key.clone(), event_target_checked(&ev).into())/>
+                    <span>{o.label}</span>
+                </label>
+            }
+            .into_any()
+        }
+        OptionKind::Choice { choices, .. } => {
+            let v = current.as_str().unwrap_or("").to_owned();
+            view! {
+                <label class="opt" for=for_id>
+                    <span>{o.label}</span>
+                    <select id=id prop:value=v.clone() on:change=move |ev| set(key.clone(), event_target_value(&ev).into())>
+                        {choices.into_iter().map(|(cv, cl)| {
+                            let sel = cv == v;
+                            view! { <option value=cv selected=sel>{cl}</option> }
+                        }).collect_view()}
+                    </select>
+                </label>
+            }
+            .into_any()
+        }
     }
 }
 
@@ -146,12 +294,18 @@ pub fn FileList() -> impl IntoView {
         if !can_run(&out_dir, 1) {
             return;
         }
+        let user = ctx.options.get_untracked();
         for (path, (tool, target)) in runnable() {
+            let options = merged_options(
+                &tool.options,
+                target.as_deref().unwrap_or(""),
+                user.get(&path),
+            );
             let req = JobRequest {
                 tool_id: tool.id,
                 inputs: vec![path],
                 target,
-                options: serde_json::json!({}),
+                options,
                 out_dir: out_dir.clone(),
             };
             spawn_local(async move {

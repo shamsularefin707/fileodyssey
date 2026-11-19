@@ -172,6 +172,9 @@ pub struct ToolInfo {
     /// Settings the UI shows for this tool; values go into `JobRequest.options`.
     #[serde(default)]
     pub options: Vec<OptionSpec>,
+    /// Turns all of a job's inputs into one output (e.g. images → one PDF).
+    #[serde(default)]
+    pub combines: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -208,6 +211,10 @@ pub struct OptionSpec {
     /// Targets this option applies to; empty means every target.
     #[serde(default)]
     pub targets: Vec<String>,
+    /// Show only when another option has this value: `("mode", "percent")`,
+    /// or doesn't: `("mode", "!percent")`.
+    #[serde(default)]
+    pub show_if: Option<(String, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

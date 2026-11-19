@@ -96,3 +96,104 @@ fn run_needs_an_output_folder_and_something_to_run() {
     assert!(!can_run("/home/you/Documents/FileOdyssey", 0));
     assert!(can_run("/home/you/Documents/FileOdyssey", 1));
 }
+
+fn spec(
+    key: &str,
+    kind: OptionKind,
+    targets: &[&str],
+    show_if: Option<(&str, &str)>,
+) -> OptionSpec {
+    OptionSpec {
+        key: key.into(),
+        label: key.into(),
+        kind,
+        targets: targets.iter().map(|t| t.to_string()).collect(),
+        show_if: show_if.map(|(k, v)| (k.into(), v.into())),
+    }
+}
+
+fn resize_specs() -> Vec<OptionSpec> {
+    vec![
+        spec(
+            "quality",
+            OptionKind::Slider {
+                min: 1,
+                max: 100,
+                step: 1,
+                default: 90,
+                unit: "".into(),
+            },
+            &["jpg", "webp"],
+            None,
+        ),
+        spec("keep", OptionKind::Toggle { default: true }, &[], None),
+        spec(
+            "mode",
+            OptionKind::Choice {
+                choices: vec![("fit".into(), "Fit".into()), ("percent".into(), "%".into())],
+                default: "fit".into(),
+            },
+            &[],
+            None,
+        ),
+        spec(
+            "percent",
+            OptionKind::Number {
+                min: 1,
+                max: 400,
+                default: 50,
+                unit: "%".into(),
+            },
+            &[],
+            Some(("mode", "percent")),
+        ),
+        spec(
+            "width",
+            OptionKind::Number {
+                min: 1,
+                max: 30000,
+                default: 1920,
+                unit: "px".into(),
+            },
+            &[],
+            Some(("mode", "!percent")),
+        ),
+    ]
+}
+
+#[test]
+fn default_options_takes_spec_defaults() {
+    let v = fo_ui::state::default_options(&resize_specs(), "jpg");
+    assert_eq!(
+        v,
+        serde_json::json!({"quality": 90, "keep": true, "mode": "fit", "percent": 50, "width": 1920})
+    );
+}
+
+#[test]
+fn visible_options_filters_by_target() {
+    let values = fo_ui::state::default_options(&resize_specs(), "png");
+    let keys: Vec<_> = fo_ui::state::visible_options(&resize_specs(), "png", &values)
+        .iter()
+        .map(|o| o.key.clone())
+        .collect();
+    assert_eq!(keys, vec!["keep", "mode", "width"]);
+}
+
+#[test]
+fn visible_options_follow_show_if() {
+    let values = serde_json::json!({"mode": "percent"});
+    let keys: Vec<_> = fo_ui::state::visible_options(&resize_specs(), "jpg", &values)
+        .iter()
+        .map(|o| o.key.clone())
+        .collect();
+    assert_eq!(keys, vec!["quality", "keep", "mode", "percent"]);
+}
+
+#[test]
+fn merged_options_overlay_user_values_on_defaults() {
+    let user = serde_json::json!({"quality": 40});
+    let v = fo_ui::state::merged_options(&resize_specs(), "jpg", Some(&user));
+    assert_eq!(v["quality"], 40);
+    assert_eq!(v["mode"], "fit");
+}

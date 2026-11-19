@@ -43,7 +43,9 @@ impl Tool for ImagesToPdf {
                     default: s("image"),
                 },
                 targets: vec![],
+                show_if: None,
             }],
+            combines: true,
         }
     }
 
@@ -146,6 +148,7 @@ fn quality_option(default: u32, for_targets: &[&str]) -> OptionSpec {
             unit: s(""),
         },
         targets: targets(for_targets),
+        show_if: None,
     }
 }
 
@@ -160,7 +163,13 @@ fn number(key: &str, label: &str, min: u32, max: u32, default: u32, unit: &str) 
             unit: s(unit),
         },
         targets: vec![],
+        show_if: None,
     }
+}
+
+fn shown_if(mut o: OptionSpec, key: &str, value: &str) -> OptionSpec {
+    o.show_if = Some((s(key), s(value)));
+    o
 }
 
 const LOSSY: &[&str] = &["jpg", "webp", "avif"];
@@ -175,6 +184,7 @@ impl ImageTool {
                     label: s("Keep photo details (EXIF, colour profile)"),
                     kind: OptionKind::Toggle { default: true },
                     targets: vec![],
+                    show_if: None,
                 },
             ],
             ImageTool::Resize => vec![
@@ -190,10 +200,23 @@ impl ImageTool {
                         default: s("fit"),
                     },
                     targets: vec![],
+                    show_if: None,
                 },
-                number("width", "Width", 1, 30000, 1920, "px"),
-                number("height", "Height", 1, 30000, 1080, "px"),
-                number("percent", "Percent", 1, 400, 50, "%"),
+                shown_if(
+                    number("width", "Width", 1, 30000, 1920, "px"),
+                    "mode",
+                    "!percent",
+                ),
+                shown_if(
+                    number("height", "Height", 1, 30000, 1080, "px"),
+                    "mode",
+                    "!percent",
+                ),
+                shown_if(
+                    number("percent", "Percent", 1, 400, 50, "%"),
+                    "mode",
+                    "percent",
+                ),
                 quality_option(90, LOSSY),
             ],
             ImageTool::Compress => vec![
@@ -250,6 +273,7 @@ impl Tool for ImageTool {
             best_effort: false,
             platforms: vec![Platform::Desktop, Platform::Android],
             options: self.options(),
+            combines: false,
         }
     }
 

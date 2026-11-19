@@ -1,3 +1,4 @@
+mod combine;
 mod file_list;
 mod jobs;
 mod pond;
@@ -32,6 +33,8 @@ pub struct AppCtx {
     pub report: RwSignal<Option<(String, FidelityReport)>>,
     pub errors: RwSignal<Vec<String>>,
     pub ripple: RwSignal<u32>,
+    /// path → option values the user changed
+    pub options: RwSignal<HashMap<String, serde_json::Value>>,
 }
 
 #[derive(Deserialize)]
@@ -118,6 +121,7 @@ pub fn App() -> impl IntoView {
         report: RwSignal::new(None),
         errors: RwSignal::new(vec![]),
         ripple: RwSignal::new(0),
+        options: RwSignal::new(HashMap::new()),
     };
     provide_context(ctx);
 
@@ -157,6 +161,7 @@ pub fn App() -> impl IntoView {
                 </header>
                 <pond::Pond/>
                 <file_list::FileList/>
+                <combine::CombineBar/>
                 <jobs::Jobs/>
             </main>
             <report::ReportDrawer/>
@@ -207,7 +212,7 @@ async fn demo(ctx: AppCtx) {
         ),
         JobRow {
             job_id: "demo2".into(),
-            input: "/home/you/Pictures/river at dusk.heic".into(),
+            input: "/home/you/Pictures/river at dusk.jpg".into(),
             status: JobStatus::Running { fraction: 0.62 },
         },
     ]);

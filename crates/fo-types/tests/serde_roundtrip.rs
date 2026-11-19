@@ -95,6 +95,7 @@ fn option_spec_serde_roundtrip() {
                     unit: "".into(),
                 },
                 targets: vec!["jpg".into()],
+                show_if: None,
             },
             OptionSpec {
                 key: "mode".into(),
@@ -104,8 +105,10 @@ fn option_spec_serde_roundtrip() {
                     default: "fit".into(),
                 },
                 targets: vec![],
+                show_if: Some(("other".into(), "!x".into())),
             },
         ],
+        combines: true,
     };
     let json = serde_json::to_string(&tool).unwrap();
     assert_eq!(serde_json::from_str::<ToolInfo>(&json).unwrap(), tool);
