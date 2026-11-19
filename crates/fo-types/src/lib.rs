@@ -231,9 +231,16 @@ pub struct JobRequest {
 #[serde(rename_all = "snake_case")]
 pub enum JobStatus {
     Queued,
-    Running { fraction: f32 },
-    Done { outputs: Vec<String>, report: FidelityReport },
-    Failed { message: String },
+    Running {
+        fraction: f32,
+    },
+    Done {
+        outputs: Vec<String>,
+        report: FidelityReport,
+    },
+    Failed {
+        message: String,
+    },
     Cancelled,
 }
 

@@ -12,7 +12,11 @@ pub fn output_path(input: &Path, out_dir: &Path, ext: &str) -> PathBuf {
     let ext = ext.trim_start_matches('.');
     let mut n = 1u32;
     loop {
-        let suffix = if n == 1 { " (converted)".to_owned() } else { format!(" (converted {n})") };
+        let suffix = if n == 1 {
+            " (converted)".to_owned()
+        } else {
+            format!(" (converted {n})")
+        };
         let candidate = out_dir.join(format!("{stem}{suffix}.{ext}"));
         if candidate != input && !candidate.exists() {
             return candidate;

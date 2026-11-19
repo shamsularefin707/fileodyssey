@@ -29,7 +29,11 @@ impl Tool for TestTool {
         let out = ctx.work_dir.join("partial.txt");
         std::fs::write(&out, "partial")?; // leftover if cleanup is broken
         (ctx.progress)(0.5);
-        let sleep = ctx.options.get("sleep_ms").and_then(|v| v.as_u64()).unwrap_or(0);
+        let sleep = ctx
+            .options
+            .get("sleep_ms")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
         for _ in 0..(sleep / 10) {
             if ctx.cancel.is_cancelled() {
                 return Err(ToolError::Cancelled);
@@ -40,7 +44,10 @@ impl Tool for TestTool {
             return Err(ToolError::Failed("Boom".into()));
         }
         std::fs::write(&out, text.to_uppercase())?;
-        Ok(ToolOutput { files: vec![(out, "txt".into())], report: FidelityReport::default() })
+        Ok(ToolOutput {
+            files: vec![(out, "txt".into())],
+            report: FidelityReport::default(),
+        })
     }
 }
 
@@ -81,8 +88,10 @@ fn run(runner: &Runner, r: JobRequest, cancel_after: Option<Duration>) -> Vec<Jo
 }
 
 fn entries(dir: &Path) -> Vec<String> {
-    let mut v: Vec<String> = std::fs::read_dir(dir).unwrap()
-        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    let mut v: Vec<String> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
     v.sort();
     v
 }
@@ -93,8 +102,17 @@ fn done_event_has_final_output_and_report() {
     let input = d.path().join("নোট.md");
     std::fs::write(&input, "hello").unwrap();
     let evs = run(&runner, req(&input, d.path(), serde_json::json!({})), None);
-    let JobStatus::Done { outputs, report } = &evs.last().unwrap().status else { panic!("{evs:?}") };
-    assert_eq!(outputs, &vec![d.path().join("নোট (converted).txt").to_string_lossy().into_owned()]);
+    let JobStatus::Done { outputs, report } = &evs.last().unwrap().status else {
+        panic!("{evs:?}")
+    };
+    assert_eq!(
+        outputs,
+        &vec![d
+            .path()
+            .join("নোট (converted).txt")
+            .to_string_lossy()
+            .into_owned()]
+    );
     assert_eq!(std::fs::read_to_string(&outputs[0]).unwrap(), "HELLO");
     assert_eq!(report.verdict(), Verdict::Exact);
     assert_eq!(evs.last().unwrap().input, input.to_string_lossy());
@@ -108,7 +126,9 @@ fn events_in_order_queued_running_done() {
     std::fs::write(&input, "x").unwrap();
     let evs = run(&runner, req(&input, d.path(), serde_json::json!({})), None);
     assert_eq!(evs[0].status, JobStatus::Queued);
-    assert!(evs[1..evs.len() - 1].iter().all(|e| matches!(e.status, JobStatus::Running { .. })));
+    assert!(evs[1..evs.len() - 1]
+        .iter()
+        .all(|e| matches!(e.status, JobStatus::Running { .. })));
     assert!(evs.len() >= 3);
     assert!(matches!(evs.last().unwrap().status, JobStatus::Done { .. }));
 }
@@ -118,7 +138,11 @@ fn cancel_mid_job_leaves_no_output_and_no_workdir() {
     let (d, runner) = setup();
     let input = d.path().join("a.md");
     std::fs::write(&input, "x").unwrap();
-    let evs = run(&runner, req(&input, d.path(), serde_json::json!({"sleep_ms": 500})), Some(Duration::from_millis(50)));
+    let evs = run(
+        &runner,
+        req(&input, d.path(), serde_json::json!({"sleep_ms": 500})),
+        Some(Duration::from_millis(50)),
+    );
     assert_eq!(evs.last().unwrap().status, JobStatus::Cancelled);
     assert_eq!(entries(d.path()), vec!["a.md"]);
 }
@@ -128,8 +152,17 @@ fn failing_tool_emits_failed_and_cleans_up() {
     let (d, runner) = setup();
     let input = d.path().join("a.md");
     std::fs::write(&input, "x").unwrap();
-    let evs = run(&runner, req(&input, d.path(), serde_json::json!({"fail": true})), None);
-    assert_eq!(evs.last().unwrap().status, JobStatus::Failed { message: "Boom".into() });
+    let evs = run(
+        &runner,
+        req(&input, d.path(), serde_json::json!({"fail": true})),
+        None,
+    );
+    assert_eq!(
+        evs.last().unwrap().status,
+        JobStatus::Failed {
+            message: "Boom".into()
+        }
+    );
     assert_eq!(entries(d.path()), vec!["a.md"]);
 }
 
@@ -141,14 +174,28 @@ fn unknown_tool_fails_clearly() {
     let mut r = req(&input, d.path(), serde_json::json!({}));
     r.tool_id = "nope".into();
     let evs = run(&runner, r, None);
-    assert_eq!(evs.last().unwrap().status, JobStatus::Failed { message: "This tool isn't available".into() });
+    assert_eq!(
+        evs.last().unwrap().status,
+        JobStatus::Failed {
+            message: "This tool isn't available".into()
+        }
+    );
 }
 
 #[test]
 fn missing_input_fails_clearly() {
     let (d, runner) = setup();
-    let evs = run(&runner, req(&d.path().join("gone.md"), d.path(), serde_json::json!({})), None);
-    assert_eq!(evs.last().unwrap().status, JobStatus::Failed { message: "File not found: gone.md".into() });
+    let evs = run(
+        &runner,
+        req(&d.path().join("gone.md"), d.path(), serde_json::json!({})),
+        None,
+    );
+    assert_eq!(
+        evs.last().unwrap().status,
+        JobStatus::Failed {
+            message: "File not found: gone.md".into()
+        }
+    );
     assert!(entries(d.path()).is_empty());
 }
 
@@ -156,9 +203,14 @@ fn missing_input_fails_clearly() {
 fn registry_filters_by_kind_and_platform() {
     let mut reg = Registry::new();
     reg.register(Arc::new(TestTool));
-    assert_eq!(reg.tools_for(&FileKind::Markdown, Platform::Desktop).len(), 1);
+    assert_eq!(
+        reg.tools_for(&FileKind::Markdown, Platform::Desktop).len(),
+        1
+    );
     assert!(reg.tools_for(&FileKind::Pdf, Platform::Desktop).is_empty());
-    assert!(reg.tools_for(&FileKind::Markdown, Platform::Android).is_empty());
+    assert!(reg
+        .tools_for(&FileKind::Markdown, Platform::Android)
+        .is_empty());
     assert!(reg.get("test.upper").is_some());
     assert!(reg.get("nope").is_none());
 }

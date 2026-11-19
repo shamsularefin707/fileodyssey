@@ -5,7 +5,10 @@ use tempfile::TempDir;
 fn first_name_is_converted_suffix() {
     let d = TempDir::new().unwrap();
     let input = d.path().join("a.pdf");
-    assert_eq!(output_path(&input, d.path(), "docx"), d.path().join("a (converted).docx"));
+    assert_eq!(
+        output_path(&input, d.path(), "docx"),
+        d.path().join("a (converted).docx")
+    );
 }
 
 #[test]
@@ -31,5 +34,8 @@ fn never_returns_input_path() {
 fn unicode_stem_preserved() {
     let d = TempDir::new().unwrap();
     let got = output_path(&d.path().join("রিপোর্ট ফাইল.pdf"), d.path(), "docx");
-    assert_eq!(got.file_name().unwrap().to_str().unwrap(), "রিপোর্ট ফাইল (converted).docx");
+    assert_eq!(
+        got.file_name().unwrap().to_str().unwrap(),
+        "রিপোর্ট ফাইল (converted).docx"
+    );
 }

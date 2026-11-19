@@ -9,7 +9,11 @@ fn report(metrics: Vec<Metric>, sim: Option<f64>, warnings: Vec<&str>) -> Fideli
 }
 
 fn m(name: &str, before: u64, after: u64) -> Metric {
-    Metric { name: name.into(), before, after }
+    Metric {
+        name: name.into(),
+        before,
+        after,
+    }
 }
 
 #[test]
@@ -30,12 +34,18 @@ fn roundtrip_job_event_done() {
 
 #[test]
 fn verdict_exact_when_nothing_lost() {
-    assert_eq!(report(vec![m("images", 3, 3)], Some(1.0), vec![]).verdict(), Verdict::Exact);
+    assert_eq!(
+        report(vec![m("images", 3, 3)], Some(1.0), vec![]).verdict(),
+        Verdict::Exact
+    );
 }
 
 #[test]
 fn verdict_warn_on_dropped_metric() {
-    assert_eq!(report(vec![m("tables", 3, 2)], Some(1.0), vec![]).verdict(), Verdict::Warn);
+    assert_eq!(
+        report(vec![m("tables", 3, 2)], Some(1.0), vec![]).verdict(),
+        Verdict::Warn
+    );
 }
 
 #[test]
@@ -45,7 +55,10 @@ fn verdict_warn_on_similarity_0_985() {
 
 #[test]
 fn verdict_warn_on_any_warning() {
-    assert_eq!(report(vec![], None, vec!["font substituted"]).verdict(), Verdict::Warn);
+    assert_eq!(
+        report(vec![], None, vec!["font substituted"]).verdict(),
+        Verdict::Warn
+    );
 }
 
 #[test]

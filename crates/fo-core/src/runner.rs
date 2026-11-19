@@ -44,7 +44,10 @@ impl Runner {
                 process(&registry, &jobs, work);
             });
         }
-        Self { tx: Mutex::new(tx), jobs }
+        Self {
+            tx: Mutex::new(tx),
+            jobs,
+        }
     }
 
     /// Queue one job; returns its id. Each input gets its own event stream:
@@ -52,7 +55,10 @@ impl Runner {
     pub fn submit(&self, req: JobRequest, sink: Sink) -> String {
         let job_id = uuid::Uuid::new_v4().to_string();
         let cancel = CancelToken::new();
-        self.jobs.lock().expect("jobs").insert(job_id.clone(), cancel.clone());
+        self.jobs
+            .lock()
+            .expect("jobs")
+            .insert(job_id.clone(), cancel.clone());
         let req = Arc::new(req);
         let remaining = Arc::new(AtomicUsize::new(req.inputs.len()));
         let tx = self.tx.lock().expect("runner queue");
@@ -82,7 +88,11 @@ impl Runner {
 }
 
 fn event(job_id: &str, input: &str, status: JobStatus) -> JobEvent {
-    JobEvent { job_id: job_id.to_owned(), input: input.to_owned(), status }
+    JobEvent {
+        job_id: job_id.to_owned(),
+        input: input.to_owned(),
+        status,
+    }
 }
 
 fn process(registry: &Registry, jobs: &Jobs, w: Work) {
@@ -102,7 +112,10 @@ fn run_one(registry: &Registry, w: &Work) -> JobStatus {
     };
     let input = Path::new(&w.input);
     if !input.is_file() {
-        let name = input.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let name = input
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
         return failed(&format!("File not found: {name}"));
     }
     let out_dir = PathBuf::from(&w.req.out_dir);
@@ -114,7 +127,11 @@ fn run_one(registry: &Registry, w: &Work) -> JobStatus {
         return failed(&format!("Can't use the output folder: {e}"));
     }
 
-    (w.sink)(event(&w.job_id, &w.input, JobStatus::Running { fraction: 0.0 }));
+    (w.sink)(event(
+        &w.job_id,
+        &w.input,
+        JobStatus::Running { fraction: 0.0 },
+    ));
     let progress = |f: f32| {
         let fraction = f.clamp(0.0, 1.0);
         (w.sink)(event(&w.job_id, &w.input, JobStatus::Running { fraction }));
@@ -133,7 +150,10 @@ fn run_one(registry: &Registry, w: &Work) -> JobStatus {
         Err(ToolError::Cancelled) => JobStatus::Cancelled,
         Err(ToolError::Failed(m)) => JobStatus::Failed { message: m },
         Ok(out) => match place_outputs(input, &out_dir, &out.files) {
-            Ok(outputs) => JobStatus::Done { outputs, report: out.report },
+            Ok(outputs) => JobStatus::Done {
+                outputs,
+                report: out.report,
+            },
             Err(e) => failed(&format!("Couldn't save the result: {e}")),
         },
     };
@@ -141,7 +161,11 @@ fn run_one(registry: &Registry, w: &Work) -> JobStatus {
     status
 }
 
-fn place_outputs(input: &Path, out_dir: &Path, files: &[(PathBuf, String)]) -> std::io::Result<Vec<String>> {
+fn place_outputs(
+    input: &Path,
+    out_dir: &Path,
+    files: &[(PathBuf, String)],
+) -> std::io::Result<Vec<String>> {
     let mut placed = Vec::with_capacity(files.len());
     for (src, ext) in files {
         let dest = output_path(input, out_dir, ext);
@@ -155,5 +179,7 @@ fn place_outputs(input: &Path, out_dir: &Path, files: &[(PathBuf, String)]) -> s
 }
 
 fn failed(message: &str) -> JobStatus {
-    JobStatus::Failed { message: message.to_owned() }
+    JobStatus::Failed {
+        message: message.to_owned(),
+    }
 }
