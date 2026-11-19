@@ -1,0 +1,63 @@
+/* FileOdyssey design tokens: water and stone. */
+@font-face {
+  font-family: "Young Serif";
+  src: url("fonts/young-serif-latin-400-normal.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  src: url("fonts/atkinson-hyperlegible-next-latin-400-normal.woff2") format("woff2"),
+       url("fonts/atkinson-hyperlegible-next-latin-ext-400-normal.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  src: url("fonts/atkinson-hyperlegible-next-latin-700-normal.woff2") format("woff2"),
+       url("fonts/atkinson-hyperlegible-next-latin-ext-700-normal.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  --lichen: #E4EAE0;
+  --pine: #1E3A2F;
+  --stone: #C3C9BC;
+  --river: #5F8794;      /* fills, rings, progress */
+  --ochre: #B8862B;      /* fills only */
+  --moss: #4E7A4A;       /* fills only */
+  --river-ink: #3F6A78;  /* text-safe (≥4.5:1 on lichen) */
+  --ochre-ink: #7E5C14;
+  --moss-ink: #3E6A3A;
+  --pine-soft: color-mix(in srgb, var(--pine) 68%, var(--lichen));
+  --surface: color-mix(in srgb, var(--lichen) 70%, white);
+
+  --serif: "Young Serif", Georgia, serif;
+  --sans: "Atkinson Hyperlegible Next", "Segoe UI", system-ui, sans-serif;
+
+  /* 1.25 scale */
+  --t-xs: 13px;
+  --t-s: 16px;
+  --t-m: 20px;
+  --t-l: 25px;
+  --t-xl: 31px;
+
+  --gap: 8px;
+  --ease: cubic-bezier(.3, .7, .2, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --lichen: #15241D;
+    --pine: #DCE6D6;
+    --stone: #33463C;
+    --river: #7FA7B3;
+    --ochre: #D3A54A;
+    --moss: #86B07F;
+    --river-ink: #7FA7B3;
+    --ochre-ink: #D3A54A;
+    --moss-ink: #86B07F;
+    --surface: color-mix(in srgb, var(--lichen) 93%, white);
+  }
+}
