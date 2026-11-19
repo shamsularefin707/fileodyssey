@@ -7,7 +7,7 @@
     "frontendDist": "../fo-ui/dist",
     "devUrl": "http://localhost:1420",
     "beforeDevCommand": {
-      "script": "pwd > /tmp/fo-cwd.txt && trunk serve",
+      "script": "trunk serve",
       "cwd": "../fo-ui",
       "wait": false
     },
