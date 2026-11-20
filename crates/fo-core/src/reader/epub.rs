@@ -49,7 +49,7 @@ fn walk(xml: &str, mut f: impl FnMut(Ev)) -> Result<(), String> {
             .map(|a| {
                 let k = a.key.local_name().as_ref().to_owned();
                 let v = a
-                    .unescape_value()
+                    .normalized_value(quick_xml::XmlVersion::Implicit1_0)
                     .map(|v| v.into_owned())
                     .unwrap_or_else(|_| a.value.to_string());
                 (k, v)
