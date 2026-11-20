@@ -67,6 +67,10 @@ fn table_cells(c: &Value) -> u64 {
 struct Walker {
     s: Stats,
     text: String,
+    /// Footnote text, compared after the body: most formats move notes to
+    /// the end, while Pandoc's AST keeps them where they're referenced.
+    notes: String,
+    in_note: bool,
 }
 
 impl Walker {
@@ -117,9 +121,18 @@ impl Walker {
                     }
                     "Note" => {
                         self.s.footnotes += 1;
-                        self.text.push(' ');
+                        let outer = std::mem::take(&mut self.text);
+                        let was = std::mem::replace(&mut self.in_note, true);
                         self.walk(c);
-                        self.text.push(' ');
+                        let note = std::mem::replace(&mut self.text, outer);
+                        self.in_note = was;
+                        if self.in_note {
+                            self.text.push(' ');
+                            self.text.push_str(&note);
+                        } else {
+                            self.notes.push(' ');
+                            self.notes.push_str(&note);
+                        }
                     }
                     _ => self.walk(c),
                 }
@@ -137,8 +150,12 @@ pub fn stats(doc: &Value) -> Stats {
     let mut w = Walker {
         s: Stats::default(),
         text: String::new(),
+        notes: String::new(),
+        in_note: false,
     };
     w.walk(doc.get("blocks").unwrap_or(doc));
+    w.text.push(' ');
+    w.text.push_str(&w.notes);
     w.s.words = normalise_words(&w.text);
     w.s
 }
@@ -240,4 +257,26 @@ pub fn report(before: &Stats, after: &Stats, compare_structure: bool) -> Fidelit
         text_similarity: Some(similarity(&before.words, &after.words)),
         warnings,
     }
+}
+
+/// Removes `[1]`-style footnote markers that plain-text output adds.
+pub fn strip_note_markers(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(i) = rest.find('[') {
+        out.push_str(&rest[..i]);
+        let after = &rest[i + 1..];
+        match after.find(']') {
+            Some(j) if j > 0 && after[..j].bytes().all(|c| c.is_ascii_digit()) => {
+                out.push(' ');
+                rest = &after[j + 1..];
+            }
+            _ => {
+                out.push('[');
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }

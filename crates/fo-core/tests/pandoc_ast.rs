@@ -87,3 +87,13 @@ fn report_flags_drops_and_plain_text() {
         plain.warnings
     );
 }
+
+#[test]
+fn footnote_words_compare_at_the_end_and_markers_strip() {
+    let s = stats(&ast("Body one.[^a] Body two.\n\n[^a]: Note words.\n"));
+    assert_eq!(s.words, vec!["Body", "one", "Body", "two", "Note", "words"]);
+    assert_eq!(
+        fo_core::pandoc::ast::strip_note_markers("map.[1] and [12] but [x]"),
+        "map.  and   but [x]"
+    );
+}
