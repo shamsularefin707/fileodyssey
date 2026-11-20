@@ -83,3 +83,25 @@ fn links_in_sanitised_documents() {
     assert_eq!(link_action(""), LinkAction::Nothing);
     assert_eq!(link_action("fo-ch:x"), LinkAction::Nothing);
 }
+
+#[test]
+fn line_ends_mark_where_text_wraps() {
+    use fo_types::{Rect, TextSpan};
+    let sp = |x: f32, y: f32| TextSpan {
+        text: "w".into(),
+        rect: Rect {
+            x,
+            y,
+            w: 0.1,
+            h: 0.02,
+        },
+    };
+    let spans = [
+        sp(0.1, 0.1),
+        sp(0.3, 0.101),
+        sp(0.1, 0.13),
+        sp(0.5, 0.13),
+        sp(0.1, 0.13),
+    ];
+    assert_eq!(line_ends(&spans), vec![false, true, false, true, true]);
+}

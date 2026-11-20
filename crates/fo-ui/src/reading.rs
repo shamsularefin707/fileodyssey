@@ -163,3 +163,16 @@ pub fn link_action(href: &str) -> LinkAction {
     }
     LinkAction::Nothing
 }
+
+/// For each span: does the text continue on a new line after it?
+pub fn line_ends(spans: &[fo_types::TextSpan]) -> Vec<bool> {
+    (0..spans.len())
+        .map(|i| match spans.get(i + 1) {
+            Some(next) => {
+                let r = spans[i].rect;
+                (next.rect.y - r.y).abs() > r.h * 0.5 || next.rect.x < r.x
+            }
+            None => true,
+        })
+        .collect()
+}

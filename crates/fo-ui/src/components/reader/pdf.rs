@@ -321,14 +321,21 @@ fn Page(
             <div class="text-layer" node_ref=layer>
                 {move || {
                     let (w, h) = (page_w.get(), height());
-                    spans.with(|m| m.get(&key).cloned().unwrap_or_default()).into_iter().map(|s| {
+                    let all = spans.with(|m| m.get(&key).cloned().unwrap_or_default());
+                    let ends_line = fo_ui::reading::line_ends(&all);
+                    all.into_iter().zip(ends_line).map(|(s, br)| {
                         let style = format!(
                             "left:{:.1}px;top:{:.1}px;font-size:{:.1}px",
                             s.rect.x as f64 * w,
                             s.rect.y as f64 * h,
                             (s.rect.h as f64 * h * 0.92).max(1.0)
                         );
-                        view! { <span data-w=format!("{:.1}", s.rect.w as f64 * w) style=style>{s.text}</span> }
+                        // <br> doesn't move anything (spans are absolute) but makes
+                        // copied text keep its line breaks.
+                        view! {
+                            <span data-w=format!("{:.1}", s.rect.w as f64 * w) style=style>{s.text}</span>
+                            {br.then(|| view! { <br/> })}
+                        }
                     }).collect_view()
                 }}
             </div>
