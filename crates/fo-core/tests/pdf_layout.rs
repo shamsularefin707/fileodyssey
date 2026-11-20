@@ -490,3 +490,91 @@ fn lone_letter_marker_is_not_a_list() {
         BlockKind::ListItem { ordered: true, .. }
     ));
 }
+
+fn sized(g: &mut Vec<Glyph>, text: &str, x: f32, y: f32, size: f32) {
+    run(g, text, x, y, size, false);
+}
+
+/// Body with a raised "1" after "water."; at the bottom of the page a small
+/// line "1 Readings were taken twice." — a footnote, linked at the marker.
+fn footnote_page(marker_in_body: bool) -> PageContent {
+    let mut g = Vec::new();
+    for i in 0..6 {
+        sized(
+            &mut g,
+            "ordinary body text of the page",
+            50.0,
+            100.0 + 14.0 * i as f32,
+            10.0,
+        );
+    }
+    sized(&mut g, "lying on the water.", 50.0, 200.0, 10.0);
+    if marker_in_body {
+        let x = g.last().unwrap().x1;
+        sized(&mut g, "1", x, 199.0, 7.0);
+    }
+    sized(&mut g, "1 Readings were taken twice.", 50.0, 700.0, 8.0);
+    sized(&mut g, "at every marker.", 50.0, 710.0, 8.0);
+    page(g)
+}
+
+#[test]
+fn footnote_at_page_bottom_links_to_its_marker() {
+    use fo_core::pdfconv::layout::reconstruct;
+    let doc = reconstruct(&[footnote_page(true)]);
+    assert_eq!(doc.notes.len(), 1);
+    let note: Vec<String> = doc.notes[0].iter().map(|l| l.text()).collect();
+    assert_eq!(
+        note.join(" "),
+        "Readings were taken twice. at every marker."
+    );
+    let marker = doc
+        .blocks
+        .iter()
+        .flat_map(|b| &b.lines)
+        .flat_map(|l| &l.spans)
+        .find(|s| s.note.is_some())
+        .expect("marker span");
+    assert_eq!((marker.note, marker.text.trim()), (Some(0), "1"));
+    assert!(!doc.blocks.iter().any(|b| b.text().contains("Readings")));
+}
+
+#[test]
+fn small_bottom_line_without_a_marker_stays_text() {
+    use fo_core::pdfconv::layout::reconstruct;
+    let doc = reconstruct(&[footnote_page(false)]);
+    assert!(doc.notes.is_empty());
+    assert!(doc
+        .blocks
+        .iter()
+        .any(|b| b.text().contains("Readings were taken twice.")));
+}
+
+#[test]
+fn running_header_and_page_numbers_are_kept_apart() {
+    use fo_core::pdfconv::layout::reconstruct;
+    let pages: Vec<PageContent> = (1..=2)
+        .map(|n| {
+            let mut g = Vec::new();
+            sized(&mut g, "Field notes, spring survey", 50.0, 30.0, 9.0);
+            for i in 0..6 {
+                sized(
+                    &mut g,
+                    "ordinary body text of the page",
+                    50.0,
+                    100.0 + 14.0 * i as f32,
+                    10.0,
+                );
+            }
+            sized(&mut g, &format!("Page {n}"), 280.0, 770.0, 9.0);
+            page(g)
+        })
+        .collect();
+    let doc = reconstruct(&pages);
+    assert_eq!(doc.header.as_deref(), Some("Field notes, spring survey"));
+    assert!(doc.page_numbers);
+    assert!(!doc
+        .blocks
+        .iter()
+        .any(|b| b.text().contains("Field notes") || b.text().contains("Page")));
+}

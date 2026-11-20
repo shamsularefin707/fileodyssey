@@ -17,6 +17,7 @@
 //!    lines), list items or paragraphs. Images take part in the cut, so they
 //!    land between the paragraphs around them.
 
+use super::notes::split_notes;
 use super::table::find_tables;
 pub use super::table::{Cell, Table};
 use super::{Glyph, PageContent};
@@ -436,7 +437,16 @@ fn margin_key(l: &Line) -> String {
         .to_owned()
 }
 
-fn drop_margins(pages: &[PageContent], frags: &mut [Vec<Line>]) {
+/// What the page margins held: the running header and footer text, and
+/// whether pages are numbered.
+#[derive(Debug, Default)]
+struct Margins {
+    header: Option<String>,
+    footer: Option<String>,
+    page_numbers: bool,
+}
+
+fn drop_margins(pages: &[PageContent], frags: &mut [Vec<Line>]) -> Margins {
     let in_margin = |l: &Line, h: f32| l.y1 < 0.08 * h || l.y0 > 0.92 * h;
     let mut seen: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     for (p, fs) in pages.iter().zip(frags.iter()) {
@@ -452,15 +462,34 @@ fn drop_margins(pages: &[PageContent], frags: &mut [Vec<Line>]) {
         }
     }
     let n = pages.len();
+    let mut m = Margins::default();
+    let mut best: [(usize, Option<String>); 2] = [(0, None), (0, None)];
     for (p, fs) in pages.iter().zip(frags.iter_mut()) {
         fs.retain(|l| {
             if !in_margin(l, p.height) {
                 return true;
             }
-            let repeated = n >= 3 && seen.get(&margin_key(l)).copied().unwrap_or(0) * 2 >= n;
-            !(page_number_like(&l.text()) || repeated)
+            let count = seen.get(&margin_key(l)).copied().unwrap_or(0);
+            let repeated = n >= 2 && (count == n || (n >= 3 && count * 2 >= n));
+            let text = l.text().trim().to_owned();
+            if page_number_like(&text) {
+                m.page_numbers = true;
+                return false;
+            }
+            if repeated {
+                let slot = &mut best[(l.y0 > 0.5 * p.height) as usize];
+                if count > slot.0 {
+                    *slot = (count, Some(text));
+                }
+                return false;
+            }
+            true
         });
     }
+    let [(_, header), (_, footer)] = best;
+    m.header = header;
+    m.footer = footer;
+    m
 }
 
 // ------------------------------------------------------------------- xy-cut
@@ -704,15 +733,33 @@ fn body_size(pages: &[PageContent]) -> f32 {
         .unwrap_or(10.0)
 }
 
+/// A reconstructed document: the body, its footnotes (referenced by
+/// `Span::note`), and the running header and footer kept apart.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Doc {
+    pub blocks: Vec<Block>,
+    pub notes: Vec<Vec<Line>>,
+    pub header: Option<String>,
+    pub footer: Option<String>,
+    pub page_numbers: bool,
+}
+
+/// The body blocks only (see `reconstruct`).
 pub fn layout(pages: &[PageContent]) -> Vec<Block> {
+    reconstruct(pages).blocks
+}
+
+pub fn reconstruct(pages: &[PageContent]) -> Doc {
     let body = body_size(pages);
     let mut frags: Vec<Vec<Line>> = pages.iter().map(fragments).collect();
-    drop_margins(pages, &mut frags);
+    let margins = drop_margins(pages, &mut frags);
+    let mut notes = Vec::new();
     let mut protos = Vec::new();
     let mut image_base = 0;
     for (p, fs) in pages.iter().zip(frags) {
         let mut fs = fs;
         let tables = find_tables(p, &mut fs, body);
+        split_notes(p.height, &mut fs, body, &mut notes);
         let mut items: Vec<Item> = fs.into_iter().map(Item::Text).collect();
         items.extend(tables.into_iter().map(|(b, t)| Item::Table(Box::new(t), b)));
         for (i, im) in p.images.iter().enumerate() {
@@ -731,7 +778,13 @@ pub fn layout(pages: &[PageContent]) -> Vec<Block> {
             leaf_blocks(leaf, &mut protos);
         }
     }
-    classify(protos, body)
+    Doc {
+        blocks: classify(protos, body),
+        notes,
+        header: margins.header,
+        footer: margins.footer,
+        page_numbers: margins.page_numbers,
+    }
 }
 
 fn classify(mut protos: Vec<Proto>, body: f32) -> Vec<Block> {
