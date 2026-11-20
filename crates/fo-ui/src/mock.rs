@@ -88,6 +88,23 @@ fn tool(
     }
 }
 
+fn flavour_option() -> OptionSpec {
+    opt(
+        "flavour",
+        "Markdown style",
+        OptionKind::Choice {
+            choices: vec![
+                ("markdown".into(), "Pandoc (keeps the most)".into()),
+                ("gfm".into(), "GitHub".into()),
+                ("commonmark".into(), "CommonMark".into()),
+            ],
+            default: "markdown".into(),
+        },
+        &["md"],
+        None,
+    )
+}
+
 fn level_option() -> OptionSpec {
     opt(
         "level",
@@ -174,13 +191,17 @@ fn tools_for(kind: FileKind) -> Vec<ToolInfo> {
 fn tools_for_kind(kind: FileKind) -> Vec<ToolInfo> {
     match kind {
         FileKind::Pdf => vec![
-            tool(
-                "pdf.convert",
-                "Convert PDF",
-                Category::Convert,
-                &["docx", "md", "html", "txt"],
-                true,
-            ),
+            {
+                let mut t = tool(
+                    "pdf.convert",
+                    "Convert PDF",
+                    Category::Convert,
+                    &["docx", "odt", "md", "html", "epub", "txt"],
+                    true,
+                );
+                t.options = vec![flavour_option()];
+                t
+            },
             tool(
                 "pdf.compress",
                 "Compress PDF",
@@ -209,20 +230,7 @@ fn tools_for_kind(kind: FileKind) -> Vec<ToolInfo> {
                 ],
                 false,
             );
-            t.options = vec![opt(
-                "flavour",
-                "Markdown style",
-                OptionKind::Choice {
-                    choices: vec![
-                        ("markdown".into(), "Pandoc (keeps the most)".into()),
-                        ("gfm".into(), "GitHub".into()),
-                        ("commonmark".into(), "CommonMark".into()),
-                    ],
-                    default: "markdown".into(),
-                },
-                &["md"],
-                None,
-            )];
+            t.options = vec![flavour_option()];
             vec![t]
         }
         FileKind::Csv => vec![tool(
