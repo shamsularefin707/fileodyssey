@@ -444,7 +444,6 @@ struct Margins {
     header: Option<String>,
     footer: Option<String>,
     page_numbers: bool,
-    set_aside: Vec<String>,
 }
 
 fn drop_margins(pages: &[PageContent], frags: &mut [Vec<Line>]) -> Margins {
@@ -475,11 +474,9 @@ fn drop_margins(pages: &[PageContent], frags: &mut [Vec<Line>]) -> Margins {
             let text = l.text().trim().to_owned();
             if page_number_like(&text) {
                 m.page_numbers = true;
-                m.set_aside.push(text);
                 return false;
             }
             if repeated {
-                m.set_aside.push(text.clone());
                 let slot = &mut best[(l.y0 > 0.5 * p.height) as usize];
                 if count > slot.0 {
                     *slot = (count, Some(text));
@@ -745,9 +742,10 @@ pub struct Doc {
     pub header: Option<String>,
     pub footer: Option<String>,
     pub page_numbers: bool,
-    /// Text set aside as running header/footer or page numbers, every
-    /// occurrence (the report doesn't count it as lost).
-    pub set_aside: Vec<String>,
+    /// The pages' text in content-stream order, with word spaces as
+    /// extraction decided them and running header/footer text set aside:
+    /// what the PDF says, before any layout. Super/subscripts stand apart.
+    pub stream_text: String,
 }
 
 /// The body text's font family and size: the most common by character
@@ -779,6 +777,29 @@ pub fn reconstruct(pages: &[PageContent]) -> Doc {
     let body = body_size(pages);
     let mut frags: Vec<Vec<Line>> = pages.iter().map(fragments).collect();
     let margins = drop_margins(pages, &mut frags);
+    let mut stream_text = String::new();
+    for fs in &frags {
+        for l in fs {
+            for (i, s) in l.spans.iter().enumerate() {
+                let t = if l.hyphen_end && i + 1 == l.spans.len() {
+                    strip_hyphen(&s.text)
+                } else {
+                    &s.text
+                };
+                if s.script == Script::Normal {
+                    stream_text.push_str(t);
+                } else {
+                    stream_text.push(' ');
+                    stream_text.push_str(t);
+                    stream_text.push(' ');
+                }
+            }
+            if !l.hyphen_end {
+                stream_text.push('\n');
+            }
+        }
+        stream_text.push('\n');
+    }
     let mut notes = Vec::new();
     let mut protos = Vec::new();
     let mut image_base = 0;
@@ -810,7 +831,7 @@ pub fn reconstruct(pages: &[PageContent]) -> Doc {
         header: margins.header,
         footer: margins.footer,
         page_numbers: margins.page_numbers,
-        set_aside: margins.set_aside,
+        stream_text,
     }
 }
 

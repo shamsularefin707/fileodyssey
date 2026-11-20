@@ -270,3 +270,20 @@ fn docx_table_keeps_merged_cells() {
     );
     assert!(html.contains("140"), "{html}");
 }
+
+/// Paragraphs get space after them, headings space before, and headings
+/// keep the PDF's bold on their runs (complex scripts need it there).
+#[test]
+fn docx_spacing_and_heading_bold() {
+    let d = tempfile::TempDir::new().unwrap();
+    let src = d.path().join("sample.pdf");
+    std::fs::write(&src, fixture::sample_pdf()).unwrap();
+    let out = run(&src, "docx");
+    let body = zip_part(&out.files[0].0, "word/document.xml");
+    let heading = &body[body.find("Heading1").unwrap()..];
+    let heading = &heading[..heading.find("</w:p>").unwrap()];
+    assert!(heading.contains("<w:b />"), "{heading}");
+    assert!(heading.contains("w:before="), "{heading}");
+    let para = &body[body.find("Slanted").unwrap().saturating_sub(600)..];
+    assert!(para.contains("w:after="), "{para}");
+}

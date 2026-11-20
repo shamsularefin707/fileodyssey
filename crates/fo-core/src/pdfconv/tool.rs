@@ -195,21 +195,20 @@ impl Tool for PdfConvert {
                 _ => None,
             })
             .collect();
-        // Running text and note markers are kept apart, not lost.
-        let mut words = normalise_words(&text);
-        let markers = doc
+        // Words as extraction spaced them (some producers draw no spaces),
+        // without the running header/footer, which is kept apart.
+        let mut words = normalise_words(if has_text { &doc.stream_text } else { &text });
+        // Each note's label appears twice: at its marker and before the note.
+        let labels = doc
             .blocks
             .iter()
             .flat_map(|b| &b.lines)
             .flat_map(|l| &l.spans)
             .filter(|s| s.note.is_some())
-            // Each note's label appears twice: at the marker and before the note.
-            .flat_map(|s| [s.text.clone(), s.text.clone()]);
-        for t in doc.set_aside.iter().cloned().chain(markers) {
-            for w in normalise_words(&t) {
-                if let Some(i) = words.iter().position(|x| *x == w) {
-                    words.remove(i);
-                }
+            .flat_map(|s| normalise_words(&s.text));
+        for w in labels.flat_map(|w| [w.clone(), w]) {
+            if let Some(i) = words.iter().position(|x| *x == w) {
+                words.remove(i);
             }
         }
         move_notes(&doc, &mut words);

@@ -9,3 +9,4 @@ for f in *.html; do
     --print-to-pdf="../${f%.html}.pdf" "file://$PWD/$f"
 done
 python3 notes_reportlab.py
+python3 footnotes_reportlab.py

@@ -7,9 +7,9 @@ use super::ast::joined_spans;
 use super::layout::{BlockKind, Doc, Line, Script, Span, Table};
 use docx_rs::{
     AbstractNumbering, AlignmentType, Docx, Footer, Footnote, Header, Hyperlink, HyperlinkType,
-    IndentLevel, Level, LevelJc, LevelText, NumberFormat, Numbering, NumberingId, PageNum,
-    Paragraph, Pic, Run, RunFonts, SpecialIndentType, Start, Style, StyleType, TableCell, TableRow,
-    VMergeType, VertAlignType,
+    IndentLevel, Level, LevelJc, LevelText, LineSpacing, NumberFormat, Numbering, NumberingId,
+    PageNum, Paragraph, Pic, Run, RunFonts, SpecialIndentType, Start, Style, StyleType, TableCell,
+    TableCellMargins, TableRow, VMergeType, VertAlignType,
 };
 
 /// An image to place: PNG bytes and its size on the page in points.
@@ -150,7 +150,9 @@ fn table(t: &Table, notes: &[Vec<Line>], text_width: f32) -> docx_rs::Table {
         rows.push(TableRow::new(cells));
     }
     let w = (text_width * 20.0 / t.cols.max(1) as f32) as usize;
-    docx_rs::Table::new(rows).set_grid(vec![w; t.cols])
+    docx_rs::Table::new(rows)
+        .set_grid(vec![w; t.cols])
+        .margins(TableCellMargins::new().margin(40, 100, 40, 100))
 }
 
 fn bullet_levels(mut a: AbstractNumbering, ordered: bool) -> AbstractNumbering {
@@ -177,6 +179,13 @@ fn bullet_levels(mut a: AbstractNumbering, ordered: bool) -> AbstractNumbering {
         );
     }
     a
+}
+
+/// Space before and after a paragraph, in multiples of `size` points.
+fn spacing(size: f32, before: f32, after: f32) -> LineSpacing {
+    LineSpacing::new()
+        .before((size * before * 20.0).round() as u32)
+        .after((size * after * 20.0).round() as u32)
 }
 
 /// Writes the document; returns the .docx bytes.
@@ -208,21 +217,23 @@ pub fn write_docx(doc: &Doc, pictures: &[Picture], page: &PageSetup) -> Result<V
         let b = &blocks[k];
         match &b.kind {
             BlockKind::Heading(n) => {
-                let all_bold = b
-                    .lines
-                    .iter()
-                    .flat_map(|l| &l.spans)
-                    .filter(|s| !s.text.trim().is_empty())
-                    .all(|s| s.bold);
-                d = d.add_paragraph(fill(
-                    Paragraph::new().style(&format!("Heading{n}")),
-                    &b.lines,
-                    &doc.notes,
-                    all_bold,
-                ));
+                // Runs keep the PDF's bold: the style's bold doesn't cover
+                // complex scripts.
+                let size = b.lines.iter().map(|l| l.size).fold(body.1, f32::max);
+                let p = Paragraph::new()
+                    .style(&format!("Heading{n}"))
+                    .line_spacing(spacing(size, 0.8, 0.3));
+                d = d.add_paragraph(fill(p, &b.lines, &doc.notes, false));
             }
             BlockKind::Para => {
-                d = d.add_paragraph(fill(Paragraph::new(), &b.lines, &doc.notes, false));
+                // A table has no space after it of its own.
+                let before = if k > 0 && matches!(blocks[k - 1].kind, BlockKind::Table(_)) {
+                    0.6
+                } else {
+                    0.0
+                };
+                let p = Paragraph::new().line_spacing(spacing(body.1, before, 0.6));
+                d = d.add_paragraph(fill(p, &b.lines, &doc.notes, false));
             }
             BlockKind::Image(i) => {
                 if let Some(p) = pictures.get(*i) {
@@ -230,7 +241,11 @@ pub fn write_docx(doc: &Doc, pictures: &[Picture], page: &PageSetup) -> Result<V
                     let h =
                         (p.height * p.width.min(text_width) / p.width.max(1.0) * EMU_PER_PT) as u32;
                     let pic = Pic::new(&p.png).size(w, h);
-                    d = d.add_paragraph(Paragraph::new().add_run(Run::new().add_image(pic)));
+                    d = d.add_paragraph(
+                        Paragraph::new()
+                            .line_spacing(spacing(body.1, 0.3, 0.6))
+                            .add_run(Run::new().add_image(pic)),
+                    );
                 }
             }
             BlockKind::Table(t) => {
@@ -253,10 +268,12 @@ pub fn write_docx(doc: &Doc, pictures: &[Picture], page: &PageSetup) -> Result<V
                     .min()
                     .unwrap_or(0);
                 while let Some(BlockKind::ListItem { level, .. }) = blocks.get(k).map(|b| &b.kind) {
-                    let p = Paragraph::new().numbering(
-                        NumberingId::new(id),
-                        IndentLevel::new((level - min) as usize),
-                    );
+                    let p = Paragraph::new()
+                        .numbering(
+                            NumberingId::new(id),
+                            IndentLevel::new((level - min) as usize),
+                        )
+                        .line_spacing(spacing(body.1, 0.0, 0.25));
                     d = d.add_paragraph(fill(p, &blocks[k].lines, &doc.notes, false));
                     k += 1;
                 }

@@ -349,12 +349,37 @@ fn grid_of(lines: &[Line], rows: &[Vec<usize>], body: f32) -> Option<(BBox, Tabl
         }
     }
     let col_of = |x: f32| cuts.iter().filter(|c| x > **c).count();
+    // Each column's content extent in the full rows. A fragment belongs to
+    // the columns whose content it overlaps (a header over right-aligned
+    // numbers can start left of the gap's middle); one in a gap goes by
+    // the gap's middle.
+    let extent: Vec<(f32, f32)> = (0..kmax)
+        .map(|k| {
+            full.iter()
+                .map(|r| &lines[r[k]])
+                .fold((f32::MAX, f32::MIN), |(lo, hi), l| {
+                    (lo.min(l.x0), hi.max(l.x1))
+                })
+        })
+        .collect();
+    let cols_of = |l: &Line| {
+        let over: Vec<usize> = (0..kmax)
+            .filter(|&k| l.x1 > extent[k].0 + 1.0 && l.x0 < extent[k].1 - 1.0)
+            .collect();
+        // It starts at the first column it overlaps, and ends at the last
+        // column it overlaps or reaches past a gap's middle into.
+        let reach = col_of(l.x1 - 1.0);
+        match over.first() {
+            Some(&a) => (a, over.last().copied().unwrap_or(a).max(reach).max(a)),
+            None => (col_of(l.x0 + 1.0), reach),
+        }
+    };
     let mut table_rows = Vec::new();
     for r in rows {
         let mut cells: Vec<Cell> = Vec::new();
         for &i in r {
             let l = &lines[i];
-            let (c0, c1) = (col_of(l.x0 + 1.0), col_of(l.x1 - 1.0));
+            let (c0, c1) = cols_of(l);
             match cells.last_mut() {
                 // Two fragments in one column are one cell.
                 Some(last) if last.col + last.colspan > c0 => {

@@ -331,3 +331,31 @@ fn ruled_box_around_one_paragraph_is_not_a_table() {
     ];
     assert!(tables(page(g, rules)).is_empty());
 }
+
+/// Right-aligned number columns: a header starting left of the gap's
+/// middle still belongs over the numbers it overlaps.
+#[test]
+fn header_over_right_aligned_numbers_finds_its_columns() {
+    let mut g = Vec::new();
+    // Column 0 text ends by x 140 (gap middle 150); numbers sit at 160–180 and 210–230.
+    run(&mut g, "Station", 50.0, 100.0, 10.0, true);
+    run(&mut g, "Level in metres", 145.0, 100.0, 10.0, true); // x 145–220
+    run(&mut g, "Dawn", 145.0, 114.0, 10.0, true); // x 145–165
+    run(&mut g, "Dusk", 205.0, 114.0, 10.0, true); // x 205–225
+    let rows = [
+        ("Ferry landing pier", "0.95", "1.10"),
+        ("North bank", "1.20", "1.35"),
+        ("Mill pool", "2.05", "2.40"),
+    ];
+    for (i, (a, b, c)) in rows.iter().enumerate() {
+        let y = 128.0 + 14.0 * i as f32;
+        run(&mut g, a, 50.0, y, 10.0, false);
+        run(&mut g, b, 160.0, y, 10.0, false);
+        run(&mut g, c, 210.0, y, 10.0, false);
+    }
+    filler(&mut g);
+    let t = tables(page(g, vec![]));
+    let rows = grid(&t[0]);
+    assert_eq!(rows[0][1], (1, "Level in metres".into(), 2, 1), "{rows:?}");
+    assert_eq!(rows[1][1], (1, "Dawn".into(), 1, 1), "{rows:?}");
+}
