@@ -1,4 +1,5 @@
 #[path = "common/pdf_fixture.rs"]
+#[allow(dead_code)] // each test binary uses part of the shared fixtures
 mod fixture;
 
 use fo_core::pandoc::NativePandoc;
