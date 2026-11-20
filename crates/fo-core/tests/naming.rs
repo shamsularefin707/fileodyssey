@@ -51,3 +51,25 @@ fn naming_combined_label() {
         fo_core::naming::output_path_with(&d.path().join("a.png"), d.path(), "pdf", "combined");
     assert_eq!(next, d.path().join("a (combined 2).pdf"));
 }
+
+#[test]
+fn empty_ext_names_a_folder() {
+    let d = TempDir::new().unwrap();
+    let got = fo_core::naming::output_path_with(&d.path().join("a.zip"), d.path(), "", "extracted");
+    assert_eq!(got, d.path().join("a (extracted)"));
+}
+
+#[test]
+fn double_extensions_are_stripped_from_the_stem() {
+    let d = TempDir::new().unwrap();
+    let got = fo_core::naming::output_path_with(
+        &d.path().join("photos.tar.gz"),
+        d.path(),
+        "",
+        "extracted",
+    );
+    assert_eq!(got, d.path().join("photos (extracted)"));
+    let got =
+        fo_core::naming::output_path_with(&d.path().join("a.png"), d.path(), "tar.zst", "archive");
+    assert_eq!(got, d.path().join("a (archive).tar.zst"));
+}
