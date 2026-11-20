@@ -145,6 +145,11 @@ fn fragments(page: &PageContent) -> Vec<Line> {
     let mut recent: Vec<String> = Vec::new();
     // Index in `recent` of the last glyph a mark copy repeated (see below).
     let mut dup: Option<usize> = None;
+    // Drawn space objects decide word gaps only on pages whose text has no
+    // real space characters (Chrome drawing a complex script); elsewhere a
+    // stray space object says nothing about the rest of the page.
+    let drawn_spaces =
+        !page.spaces.is_empty() && !page.glyphs.iter().any(|g| !g.generated && g.text == " ");
     let finish = |cur: &mut Option<Frag>, out: &mut Vec<Line>| {
         if let Some(mut f) = cur.take() {
             resolve_spaces(&mut f);
@@ -196,7 +201,7 @@ fn fragments(page: &PageContent) -> Vec<Line> {
         let mut gap_em = 0.0;
         if let Some(f) = &cur {
             gap_em = (g.x0 - f.last_x1) / g.size.max(1.0);
-            if !page.spaces.is_empty() {
+            if drawn_spaces {
                 // Drawn spaces decide: is one between the last glyph and this?
                 let (a, b) = (f.last_x1.min(g.x0) - 1.0, f.last_x1.max(g.x0) + 1.0);
                 let drawn = page.spaces.iter().any(|s| {

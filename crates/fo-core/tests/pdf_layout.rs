@@ -346,3 +346,19 @@ fn mark_copies_of_a_cluster_are_dropped() {
     ];
     assert_eq!(texts(&layout(&[page(g)])), vec!["purex"]);
 }
+
+/// A page whose text carries real space characters isn't one of those
+/// producers: a stray space object must not override its word gaps.
+#[test]
+fn drawn_spaces_ignored_when_text_has_real_spaces() {
+    let g = vec![
+        glyph("ab", 50.0, 70.0, 40.0, 60.0, false),
+        glyph(" ", 70.0, 74.0, 40.0, 60.0, false),
+        glyph("cd", 74.0, 94.0, 40.0, 60.0, false),
+        glyph(" ", 94.0, 94.0, 60.0, 60.0, true),
+        glyph("ef", 98.0, 118.0, 40.0, 60.0, false),
+    ];
+    let mut p = page(g);
+    p.spaces = vec![[300.0, 60.5, 300.0, 60.5]];
+    assert_eq!(texts(&layout(&[p])), vec!["ab cd ef"]);
+}
