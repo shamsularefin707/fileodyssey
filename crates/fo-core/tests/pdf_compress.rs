@@ -71,8 +71,16 @@ fn text_pdf(dir: &TempDir) -> PathBuf {
 /// lopdf can write files it reads back but other readers reject; when qpdf is
 /// installed, every output must also pass `qpdf --check`.
 fn page_count(p: &Path) -> usize {
-    if let Ok(out) = std::process::Command::new("qpdf").arg("--check").arg(p).output() {
-        assert!(out.status.success(), "qpdf rejects {p:?}: {}", String::from_utf8_lossy(&out.stdout));
+    if let Ok(out) = std::process::Command::new("qpdf")
+        .arg("--check")
+        .arg(p)
+        .output()
+    {
+        assert!(
+            out.status.success(),
+            "qpdf rejects {p:?}: {}",
+            String::from_utf8_lossy(&out.stdout)
+        );
     }
     lopdf::Document::load(p).unwrap().get_pages().len()
 }
