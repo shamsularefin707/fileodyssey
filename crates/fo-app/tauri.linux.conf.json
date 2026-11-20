@@ -1,7 +1,8 @@
 {
   "bundle": {
     "resources": {
-      "../../pdfium/linux-x64/lib/libpdfium.so": "pdfium/libpdfium.so"
+      "../../pdfium/linux-x64/lib/libpdfium.so": "pdfium/libpdfium.so",
+      "PDFium-LICENSE.txt": "pdfium/LICENSE.txt"
     }
   }
 }
