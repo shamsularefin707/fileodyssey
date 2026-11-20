@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "resources": {
+      "../../pdfium/win-x64/bin/pdfium.dll": "pdfium/pdfium.dll"
+    }
+  }
+}
