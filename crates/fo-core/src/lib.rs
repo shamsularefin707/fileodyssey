@@ -2,6 +2,7 @@ pub mod archive;
 pub mod detect;
 pub mod image;
 pub mod naming;
+pub mod pdfopt;
 pub mod qr;
 pub mod registry;
 pub mod runner;
