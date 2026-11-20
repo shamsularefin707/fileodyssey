@@ -230,6 +230,9 @@ pub struct Metric {
     pub name: String,
     pub before: u64,
     pub after: u64,
+    /// Shown for context (e.g. file size) but never counted as a loss.
+    #[serde(default)]
+    pub informational: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -251,7 +254,10 @@ pub struct FidelityReport {
 
 impl FidelityReport {
     pub fn verdict(&self) -> Verdict {
-        let dropped = self.metrics.iter().any(|m| m.after < m.before);
+        let dropped = self
+            .metrics
+            .iter()
+            .any(|m| !m.informational && m.after < m.before);
         let low_text = self
             .text_similarity
             .is_some_and(|s| s < EXACT_TEXT_SIMILARITY);

@@ -13,6 +13,7 @@ fn m(name: &str, before: u64, after: u64) -> Metric {
         name: name.into(),
         before,
         after,
+        informational: false,
     }
 }
 
@@ -118,4 +119,23 @@ fn option_spec_serde_roundtrip() {
         .unwrap()
         .options
         .is_empty());
+}
+
+#[test]
+fn verdict_ignores_informational_metrics() {
+    let size = Metric {
+        name: "File size (KB)".into(),
+        before: 900,
+        after: 300,
+        informational: true,
+    };
+    let r = FidelityReport {
+        metrics: vec![size],
+        text_similarity: None,
+        warnings: vec![],
+    };
+    assert_eq!(r.verdict(), Verdict::Exact);
+    // Older payloads without the flag still parse, as loss metrics.
+    let m: Metric = serde_json::from_str(r#"{"name":"Pages","before":3,"after":2}"#).unwrap();
+    assert!(!m.informational);
 }
