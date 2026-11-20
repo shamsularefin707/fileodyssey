@@ -3,7 +3,9 @@
 use fo_types::FileKind;
 
 /// Conversion targets, as output extensions, in menu order.
-pub const TARGETS: [&str; 11] = ["docx", "odt", "rtf", "epub", "html", "md", "txt", "tex", "rst", "org", "adoc"];
+pub const TARGETS: [&str; 11] = [
+    "docx", "odt", "rtf", "epub", "html", "md", "txt", "tex", "rst", "org", "adoc",
+];
 
 /// Pandoc reader for a source kind. Plain text has none: it is turned into
 /// a Pandoc AST directly (see `tool::text_ast`), read as `json`.
