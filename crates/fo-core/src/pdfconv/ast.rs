@@ -1,6 +1,6 @@
 //! Reconstructed blocks → Pandoc JSON AST.
 
-use super::layout::{strip_hyphen, Block, BlockKind, Line, Script, Span};
+use super::layout::{strip_hyphen, Block, BlockKind, Cell, Line, Script, Span, Table};
 use serde_json::{json, Value};
 
 /// File name the AST uses for image `i` (0-based, document-wide).
@@ -114,6 +114,40 @@ pub fn inlines(lines: &[Line]) -> Vec<Value> {
     out
 }
 
+/// A Pandoc table: header rows in the head, the rest in one body; cells
+/// keep their row and column spans.
+pub fn table(t: &Table) -> Value {
+    let attr = json!(["", [], []]);
+    let row = |r: &Vec<Cell>| {
+        let cells: Vec<Value> = r
+            .iter()
+            .map(|c| {
+                let inl = inlines(&c.lines);
+                let blocks = if inl.is_empty() {
+                    json!([])
+                } else {
+                    json!([{"t": "Plain", "c": inl}])
+                };
+                json!([attr, {"t": "AlignDefault"}, c.rowspan, c.colspan, blocks])
+            })
+            .collect();
+        json!([attr, cells])
+    };
+    let head: Vec<Value> = t.rows[..t.header_rows].iter().map(row).collect();
+    let body: Vec<Value> = t.rows[t.header_rows..].iter().map(row).collect();
+    let specs: Vec<Value> = (0..t.cols)
+        .map(|_| json!([{"t": "AlignDefault"}, {"t": "ColWidthDefault"}]))
+        .collect();
+    json!({"t": "Table", "c": [
+        attr,
+        [null, []],
+        specs,
+        [attr, head],
+        [[attr, 0, [], body]],
+        [attr, []]
+    ]})
+}
+
 /// Nested lists from consecutive list items, by indent level.
 fn list(items: &[(bool, u8, Vec<Value>)], level: u8, i: &mut usize) -> Value {
     let ordered = items[*i].0;
@@ -157,6 +191,7 @@ pub fn to_ast(blocks: &[Block], api: &Value) -> Value {
                     out.push(json!({"t": "Para", "c": inl}));
                 }
             }
+            BlockKind::Table(t) => out.push(table(t)),
             BlockKind::Image(i) => out.push(json!({"t": "Para", "c": [{"t": "Image", "c": [["", [], []], [], [image_name(*i), ""]]}]})),
             BlockKind::ListItem { .. } => {
                 let mut items = Vec::new();

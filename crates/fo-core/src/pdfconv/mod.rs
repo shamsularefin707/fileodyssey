@@ -111,4 +111,5 @@ pub struct PageContent {
 }
 pub mod ast;
 pub mod layout;
+pub mod table;
 pub mod tool;

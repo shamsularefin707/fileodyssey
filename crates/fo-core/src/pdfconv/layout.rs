@@ -17,6 +17,8 @@
 //!    lines), list items or paragraphs. Images take part in the cut, so they
 //!    land between the paragraphs around them.
 
+use super::table::find_tables;
+pub use super::table::{Cell, Table};
 use super::{Glyph, PageContent};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -75,6 +77,7 @@ pub enum BlockKind {
     },
     /// Index into all images, numbered page by page.
     Image(usize),
+    Table(Table),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -132,6 +135,7 @@ enum Item {
         x1: f32,
         y1: f32,
     },
+    Table(Box<Table>, [f32; 4]),
 }
 
 impl Item {
@@ -139,6 +143,7 @@ impl Item {
         match self {
             Item::Text(l) => (l.x0, l.y0, l.x1, l.y1),
             Item::Image { x0, y0, x1, y1, .. } => (*x0, *y0, *x1, *y1),
+            Item::Table(_, b) => (b[0], b[1], b[2], b[3]),
         }
     }
 }
@@ -515,7 +520,7 @@ fn xycut(items: Vec<Item>, body: f32, leaves: &mut Vec<Vec<Item>>) {
 
 // ------------------------------------------------------------------- blocks
 
-fn join_same_baseline(mut lines: Vec<Line>) -> Vec<Line> {
+pub(crate) fn join_same_baseline(mut lines: Vec<Line>) -> Vec<Line> {
     lines.sort_by(|a, b| a.y0.total_cmp(&b.y0).then(a.x0.total_cmp(&b.x0)));
     let mut out: Vec<Line> = Vec::new();
     for l in lines {
@@ -594,6 +599,7 @@ struct Proto {
     image: Option<usize>,
     /// The list marker taken off the first line ("a. ").
     marker: String,
+    table: Option<Table>,
 }
 
 fn leaf_blocks(items: Vec<Item>, out: &mut Vec<Proto>) {
@@ -609,6 +615,17 @@ fn leaf_blocks(items: Vec<Item>, out: &mut Vec<Proto>) {
                     list: None,
                     image: Some(idx),
                     marker: String::new(),
+                    table: None,
+                },
+            )),
+            Item::Table(t, b) => rest.push((
+                b[1],
+                Proto {
+                    lines: vec![],
+                    list: None,
+                    image: None,
+                    marker: String::new(),
+                    table: Some(*t),
                 },
             )),
         }
@@ -658,6 +675,7 @@ fn leaf_blocks(items: Vec<Item>, out: &mut Vec<Proto>) {
                 list,
                 image: None,
                 marker: text.get(..taken).unwrap_or("").trim_start().to_owned(),
+                table: None,
             });
         } else if let Some(c) = cur.as_mut() {
             c.lines.push(l.clone());
@@ -693,7 +711,10 @@ pub fn layout(pages: &[PageContent]) -> Vec<Block> {
     let mut protos = Vec::new();
     let mut image_base = 0;
     for (p, fs) in pages.iter().zip(frags) {
+        let mut fs = fs;
+        let tables = find_tables(p, &mut fs, body);
         let mut items: Vec<Item> = fs.into_iter().map(Item::Text).collect();
+        items.extend(tables.into_iter().map(|(b, t)| Item::Table(Box::new(t), b)));
         for (i, im) in p.images.iter().enumerate() {
             items.push(Item::Image {
                 idx: image_base + i,
@@ -782,7 +803,9 @@ fn classify(mut protos: Vec<Proto>, body: f32) -> Vec<Block> {
     protos
         .into_iter()
         .map(|p| {
-            let kind = if let Some(i) = p.image {
+            let kind = if let Some(t) = p.table.clone() {
+                BlockKind::Table(t)
+            } else if let Some(i) = p.image {
                 BlockKind::Image(i)
             } else if is_big(&p) {
                 let key = (size_of(&p) * 2.0).round() as i32;
