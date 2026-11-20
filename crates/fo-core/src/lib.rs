@@ -4,6 +4,7 @@ pub mod image;
 pub mod naming;
 pub mod office;
 pub mod pdfopt;
+pub mod pandoc;
 pub mod qr;
 pub mod reader;
 pub mod registry;

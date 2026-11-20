@@ -191,6 +191,10 @@ fn from_text(buf: &[u8], ext: &str) -> FileKind {
         "html" | "htm" | "xhtml" => FileKind::Html,
         "csv" => FileKind::Csv,
         "json" => FileKind::Json,
+        "tex" | "latex" | "ltx" => FileKind::Latex,
+        "rst" | "rest" => FileKind::Rst,
+        "org" => FileKind::Org,
+        "adoc" | "asciidoc" | "asc" => FileKind::AsciiDoc,
         _ => FileKind::Text,
     }
 }
