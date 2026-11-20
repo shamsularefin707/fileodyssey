@@ -50,3 +50,4 @@ pub struct PageContent {
     pub images: Vec<PageImage>,
     pub links: Vec<PageLink>,
 }
+pub mod layout;
