@@ -1,6 +1,6 @@
 //! Reconstructed blocks → Pandoc JSON AST.
 
-use super::layout::{strip_hyphen, Block, BlockKind, Cell, Line, Script, Span, Table};
+use super::layout::{strip_hyphen, BlockKind, Cell, Doc, Line, Script, Span, Table};
 use serde_json::{json, Value};
 
 /// File name the AST uses for image `i` (0-based, document-wide).
@@ -64,6 +64,11 @@ fn styled(s: &Span, out: &mut Vec<Value>) {
 /// Inline content of a block: lines joined, hyphenated words rejoined,
 /// runs of one link grouped into a single Link.
 pub fn inlines(lines: &[Line]) -> Vec<Value> {
+    inlines_in(lines, &[])
+}
+
+/// As `inlines`; spans marking a footnote become a Note holding it.
+fn inlines_in(lines: &[Line], notes: &[Vec<Line>]) -> Vec<Value> {
     let mut spans: Vec<Span> = Vec::new();
     for (i, l) in lines.iter().enumerate() {
         let mut ls = l.spans.clone();
@@ -103,7 +108,20 @@ pub fn inlines(lines: &[Line]) -> Vec<Value> {
                 }
             }
             None => {
-                styled(&spans[i], &mut out);
+                match spans[i].note.and_then(|n| notes.get(n)) {
+                    Some(note) => {
+                        // The marker sits right after its word.
+                        if out.last().and_then(|v| v["t"].as_str()) == Some("Space") {
+                            out.pop();
+                        }
+                        let body = inlines_in(note, &[]);
+                        out.push(json!({"t": "Note", "c": [{"t": "Para", "c": body}]}));
+                        if spans[i].text.ends_with(char::is_whitespace) {
+                            push_space(&mut out);
+                        }
+                    }
+                    None => styled(&spans[i], &mut out),
+                }
                 i += 1;
             }
         }
@@ -133,7 +151,22 @@ pub fn table(t: &Table) -> Value {
             .collect();
         json!([attr, cells])
     };
-    let head: Vec<Value> = t.rows[..t.header_rows].iter().map(row).collect();
+    // Header cells are bold by look, like headings.
+    let plain: Vec<Vec<Cell>> = t.rows[..t.header_rows]
+        .iter()
+        .map(|r| {
+            r.iter()
+                .cloned()
+                .map(|mut c| {
+                    for s in c.lines.iter_mut().flat_map(|l| l.spans.iter_mut()) {
+                        s.bold = false;
+                    }
+                    c
+                })
+                .collect()
+        })
+        .collect();
+    let head: Vec<Value> = plain.iter().map(row).collect();
     let body: Vec<Value> = t.rows[t.header_rows..].iter().map(row).collect();
     let specs: Vec<Value> = (0..t.cols)
         .map(|_| json!([{"t": "AlignDefault"}, {"t": "ColWidthDefault"}]))
@@ -168,7 +201,9 @@ fn list(items: &[(bool, u8, Vec<Value>)], level: u8, i: &mut usize) -> Value {
     }
 }
 
-pub fn to_ast(blocks: &[Block], api: &Value) -> Value {
+pub fn to_ast(doc: &Doc, api: &Value) -> Value {
+    let blocks = &doc.blocks;
+    let notes = &doc.notes;
     let mut out = Vec::new();
     let mut k = 0;
     while k < blocks.len() {
@@ -183,10 +218,10 @@ pub fn to_ast(blocks: &[Block], api: &Value) -> Value {
                         s.bold = false;
                     }
                 }
-                out.push(json!({"t": "Header", "c": [n, ["", [], []], inlines(&lines)]}));
+                out.push(json!({"t": "Header", "c": [n, ["", [], []], inlines_in(&lines, notes)]}));
             }
             BlockKind::Para => {
-                let inl = inlines(&b.lines);
+                let inl = inlines_in(&b.lines, notes);
                 if !inl.is_empty() {
                     out.push(json!({"t": "Para", "c": inl}));
                 }
@@ -196,7 +231,7 @@ pub fn to_ast(blocks: &[Block], api: &Value) -> Value {
             BlockKind::ListItem { .. } => {
                 let mut items = Vec::new();
                 while let Some(BlockKind::ListItem { ordered, level }) = blocks.get(k).map(|b| &b.kind) {
-                    items.push((*ordered, *level, inlines(&blocks[k].lines)));
+                    items.push((*ordered, *level, inlines_in(&blocks[k].lines, notes)));
                     k += 1;
                 }
                 let min = items.iter().map(|x| x.1).min().unwrap_or(0);

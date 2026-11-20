@@ -1,7 +1,7 @@
 //! `pdf.convert`: rebuild a digital PDF as an editable document.
 
 use super::ast::{image_name, to_ast};
-use super::layout::{layout, Block, BlockKind};
+use super::layout::{reconstruct, Block, BlockKind, Doc};
 use crate::pandoc::ast::{normalise_words, Stats};
 use crate::pandoc::formats::writer_for;
 use crate::pandoc::tool::{DocConvert, Source};
@@ -26,6 +26,50 @@ impl PdfConvert {
             doc: DocConvert::new(engine),
         }
     }
+}
+
+/// The fidelity check reads footnotes after the text (where Pandoc puts
+/// them): move each note's words from the page bottom to the end of the
+/// PDF's word sequence too, so placing notes isn't counted as reordering.
+fn move_notes(doc: &Doc, words: &mut Vec<String>) {
+    let mut moved = Vec::new();
+    for note in &doc.notes {
+        let text: String = note.iter().map(|l| l.text() + " ").collect();
+        let nw = normalise_words(&text);
+        if nw.is_empty() || nw.len() > words.len() {
+            continue;
+        }
+        if let Some(from) = (0..=words.len() - nw.len())
+            .rev()
+            .find(|&i| words[i..i + nw.len()] == nw[..])
+        {
+            moved.extend(words.drain(from..from + nw.len()));
+        }
+    }
+    words.extend(moved);
+}
+
+/// Report line for running headers/footers left out of a target that has
+/// no page header (only DOCX keeps them).
+fn running_text_note(doc: &Doc) -> Option<String> {
+    let mut parts: Vec<String> = Vec::new();
+    for t in [&doc.header, &doc.footer].into_iter().flatten() {
+        parts.push(format!("“{t}”"));
+    }
+    // Page numbers alone aren't content worth a warning.
+    if parts.is_empty() {
+        return None;
+    }
+    if doc.page_numbers {
+        parts.push("page numbers".into());
+    }
+    let list = match parts.len() {
+        1 => parts[0].clone(),
+        n => format!("{} and {}", parts[..n - 1].join(", "), parts[n - 1]),
+    };
+    Some(format!(
+        "The running header/footer text {list} repeats on every page, so it was left out; Word (DOCX) keeps it as the page header and footer"
+    ))
 }
 
 fn failed(e: String) -> ToolError {
@@ -84,23 +128,26 @@ impl Tool for PdfConvert {
 
         // What the PDF itself holds: its text in stream order, images, links.
         let mut text = String::new();
-        for g in pages.iter().flat_map(|p| &p.glyphs) {
-            text.push_str(&g.text);
-            if g.generated {
-                text.push(' ');
+        for p in &pages {
+            for g in &p.glyphs {
+                text.push_str(&g.text);
+                if g.generated {
+                    text.push(' ');
+                }
             }
+            text.push('\n');
         }
         let has_text = pages
             .iter()
             .flat_map(|p| &p.glyphs)
             .any(|g| !g.generated && !g.text.trim().is_empty());
         let mut warnings = Vec::new();
-        let (blocks, pictures): (Vec<Block>, Vec<Vec<u8>>) = if has_text {
+        let (doc, pictures): (Doc, Vec<Vec<u8>>) = if has_text {
             let pics = pages
                 .iter()
                 .flat_map(|p| p.images.iter().map(|i| i.png.clone()))
                 .collect();
-            (layout(&pages), pics)
+            (reconstruct(&pages), pics)
         } else {
             // A scan: keep each page as a picture.
             warnings.push("This PDF has no text layer (it's scanned or made of pictures), so the pages are kept as images. Reading text from images (OCR) isn't supported.".to_string());
@@ -120,18 +167,61 @@ impl Tool for PdfConvert {
                     lines: vec![],
                 })
                 .collect();
-            (blocks, pics)
+            (
+                Doc {
+                    blocks,
+                    ..Doc::default()
+                },
+                pics,
+            )
         };
+        let tables: Vec<_> = doc
+            .blocks
+            .iter()
+            .filter_map(|b| match &b.kind {
+                BlockKind::Table(t) => Some(t),
+                _ => None,
+            })
+            .collect();
+        // Running text and note markers are kept apart, not lost.
+        let mut words = normalise_words(&text);
+        let markers = doc
+            .blocks
+            .iter()
+            .flat_map(|b| &b.lines)
+            .flat_map(|l| &l.spans)
+            .filter(|s| s.note.is_some())
+            // Each note's label appears twice: at the marker and before the note.
+            .flat_map(|s| [s.text.clone(), s.text.clone()]);
+        for t in doc.set_aside.iter().cloned().chain(markers) {
+            for w in normalise_words(&t) {
+                if let Some(i) = words.iter().position(|x| *x == w) {
+                    words.remove(i);
+                }
+            }
+        }
+        move_notes(&doc, &mut words);
         let before = Stats {
-            words: normalise_words(&text),
+            words,
             images: pictures.len() as u64,
             links: pages.iter().map(|p| p.links.len() as u64).sum(),
+            tables: tables.len() as u64,
+            cells: tables
+                .iter()
+                .map(|t| t.rows.iter().map(|r| r.len() as u64).sum::<u64>())
+                .sum(),
+            footnotes: doc.notes.len() as u64,
             ..Stats::default()
         };
+        if target != "docx" {
+            if let Some(w) = running_text_note(&doc) {
+                warnings.push(w);
+            }
+        }
         (ctx.progress)(0.45);
 
         let api = self.doc.ast(ctx, "markdown", "probe.md", Vec::new())?;
-        let ast = to_ast(&blocks, &api["pandoc-api-version"]);
+        let ast = to_ast(&doc, &api["pandoc-api-version"]);
         let mut files = vec![(
             "input.json".to_string(),
             serde_json::to_vec(&ast).unwrap_or_default(),

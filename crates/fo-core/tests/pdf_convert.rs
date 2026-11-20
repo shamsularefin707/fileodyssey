@@ -101,3 +101,44 @@ fn tool_info() {
     assert!(i.best_effort);
     assert_eq!(i.targets, ["docx", "odt", "md", "html", "epub", "txt"]);
 }
+
+#[test]
+fn tables_notes_and_running_text_in_markdown() {
+    let d = tempfile::TempDir::new().unwrap();
+    let src = d.path().join("notes.pdf");
+    std::fs::write(&src, fixture::structured_pdf()).unwrap();
+    let out = run(&src, "md");
+    let md = std::fs::read_to_string(&out.files[0].0).unwrap();
+    assert!(md.contains("water.[^1]"), "{md}");
+    assert!(md.contains("[^1]: Readings were taken twice."), "{md}");
+    assert!(md.contains("March") && md.contains("2.9"), "{md}");
+    assert!(
+        !md.contains("**Month**"),
+        "header cells aren't bold text: {md}"
+    );
+    assert!(
+        !md.contains("Survey notes") && !md.contains("Page 1"),
+        "{md}"
+    );
+    let get = |n: &str| {
+        out.report
+            .metrics
+            .iter()
+            .find(|m| m.name == n)
+            .map(|m| (m.before, m.after))
+    };
+    assert_eq!(get("Tables"), Some((1, 1)), "{:#?}", out.report);
+    assert_eq!(get("Table cells"), Some((6, 6)), "{:#?}", out.report);
+    assert_eq!(get("Footnotes"), Some((1, 1)), "{:#?}", out.report);
+    assert!(
+        out.report
+            .warnings
+            .iter()
+            .any(|w| w.contains("Survey notes") && w.contains("page numbers")),
+        "{:#?}",
+        out.report.warnings
+    );
+    assert_eq!(out.report.text_similarity, Some(1.0), "{:#?}", out.report);
+    // Leaving the header text out of Markdown is a real change: ⚠.
+    assert_eq!(out.report.verdict(), fo_types::Verdict::Warn);
+}

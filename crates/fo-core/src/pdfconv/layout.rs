@@ -444,6 +444,7 @@ struct Margins {
     header: Option<String>,
     footer: Option<String>,
     page_numbers: bool,
+    set_aside: Vec<String>,
 }
 
 fn drop_margins(pages: &[PageContent], frags: &mut [Vec<Line>]) -> Margins {
@@ -474,9 +475,11 @@ fn drop_margins(pages: &[PageContent], frags: &mut [Vec<Line>]) -> Margins {
             let text = l.text().trim().to_owned();
             if page_number_like(&text) {
                 m.page_numbers = true;
+                m.set_aside.push(text);
                 return false;
             }
             if repeated {
+                m.set_aside.push(text.clone());
                 let slot = &mut best[(l.y0 > 0.5 * p.height) as usize];
                 if count > slot.0 {
                     *slot = (count, Some(text));
@@ -742,6 +745,9 @@ pub struct Doc {
     pub header: Option<String>,
     pub footer: Option<String>,
     pub page_numbers: bool,
+    /// Text set aside as running header/footer or page numbers, every
+    /// occurrence (the report doesn't count it as lost).
+    pub set_aside: Vec<String>,
 }
 
 /// The body blocks only (see `reconstruct`).
@@ -784,6 +790,7 @@ pub fn reconstruct(pages: &[PageContent]) -> Doc {
         header: margins.header,
         footer: margins.footer,
         page_numbers: margins.page_numbers,
+        set_aside: margins.set_aside,
     }
 }
 

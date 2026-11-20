@@ -151,12 +151,15 @@ impl DocConvert {
         let after = if known_structure {
             after
         } else {
-            // The source's headings, paragraphs, tables and notes aren't known
-            // independently (a PDF has none as such): compare what is.
+            // The source's headings and paragraphs aren't known independently
+            // (a PDF has none as such): compare what is.
             Stats {
                 words: after.words,
                 images: after.images,
                 links: after.links,
+                tables: after.tables,
+                cells: after.cells,
+                footnotes: after.footnotes,
                 ..Stats::default()
             }
         };
