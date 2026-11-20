@@ -1,4 +1,5 @@
 pub mod archive;
+pub mod data;
 pub mod detect;
 pub mod image;
 pub mod naming;
