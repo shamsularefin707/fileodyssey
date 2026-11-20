@@ -189,11 +189,54 @@ fn tools_for_kind(kind: FileKind) -> Vec<ToolInfo> {
                 false,
             ),
         ],
-        FileKind::Markdown | FileKind::Docx => vec![tool(
-            "doc.convert",
-            "Convert document",
+        FileKind::Markdown
+        | FileKind::Docx
+        | FileKind::Html
+        | FileKind::Odt
+        | FileKind::Rtf
+        | FileKind::Epub
+        | FileKind::Text
+        | FileKind::Latex
+        | FileKind::Rst
+        | FileKind::Org
+        | FileKind::AsciiDoc => {
+            let mut t = tool(
+                "doc.convert",
+                "Convert document",
+                Category::Convert,
+                &[
+                    "docx", "odt", "rtf", "epub", "html", "md", "txt", "tex", "rst", "org", "adoc",
+                ],
+                false,
+            );
+            t.options = vec![opt(
+                "flavour",
+                "Markdown style",
+                OptionKind::Choice {
+                    choices: vec![
+                        ("markdown".into(), "Pandoc (keeps the most)".into()),
+                        ("gfm".into(), "GitHub".into()),
+                        ("commonmark".into(), "CommonMark".into()),
+                    ],
+                    default: "markdown".into(),
+                },
+                &["md"],
+                None,
+            )];
+            vec![t]
+        }
+        FileKind::Csv => vec![tool(
+            "data.convert",
+            "Convert table",
             Category::Convert,
-            &["docx", "pdf", "html", "epub", "odt", "md", "txt"],
+            &["json", "xlsx"],
+            false,
+        )],
+        FileKind::Json => vec![tool(
+            "data.convert",
+            "Convert table",
+            Category::Convert,
+            &["csv"],
             false,
         )],
         FileKind::Image(f) if !matches!(f, ImageFormat::Avif | ImageFormat::Heic) => image_tools(),
@@ -433,6 +476,11 @@ pub async fn invoke(cmd: &str, args: JsValue) -> Result<JsValue, String> {
             let own = match kind {
                 FileKind::Docx => "docx",
                 FileKind::Markdown => "md",
+                FileKind::Html => "html",
+                FileKind::Odt => "odt",
+                FileKind::Rtf => "rtf",
+                FileKind::Epub => "epub",
+                FileKind::Text => "txt",
                 _ => "",
             };
             let mut tools = tools_for(kind);

@@ -65,7 +65,8 @@ fn readable_kinds() {
         !readable(&FileKind::Image(ImageFormat::Heic)),
         "not decodable yet"
     );
-    assert!(!readable(&FileKind::Docx) && !readable(&FileKind::Unknown));
+    assert!(readable(&FileKind::Docx) && readable(&FileKind::Rst));
+    assert!(!readable(&FileKind::Xlsx) && !readable(&FileKind::Unknown));
 }
 
 #[test]

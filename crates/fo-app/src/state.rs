@@ -37,7 +37,11 @@ impl AppState {
             registry,
             runner,
             placed: Placed::default(),
-            reader: Arc::new(fo_core::reader::session::Sessions::new(vec![])),
+            reader: {
+                let r = Arc::new(fo_core::reader::session::Sessions::new(vec![]));
+                r.set_pandoc(pandoc.clone());
+                r
+            },
             pandoc,
         }
     }
