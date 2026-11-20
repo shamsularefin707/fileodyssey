@@ -25,6 +25,14 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev libssl-dev qpdf
       - name: PDFium (reader engine)
         run: scripts/fetch-pdfium.sh linux-x64
+      - name: Pandoc (wasm for the app, native for tests)
+        run: scripts/fetch-pandoc.sh --native
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Pandoc worker test (real pandoc.wasm)
+        working-directory: crates/fo-ui/pandoc-worker
+        run: npm ci && node test.mjs
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
@@ -64,11 +72,11 @@ jobs:
           tool: trunk,tauri-cli
       - name: PDFium (Linux)
         if: runner.os == 'Linux'
-        run: scripts/fetch-pdfium.sh linux-x64
+        run: scripts/fetch-pdfium.sh linux-x64 && scripts/fetch-pandoc.sh
       - name: PDFium (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ./scripts/fetch-pdfium.ps1
+        run: ./scripts/fetch-pdfium.ps1; ./scripts/fetch-pandoc.ps1
       - name: Build bundle
         working-directory: crates/fo-app
         run: cargo tauri build
@@ -115,6 +123,7 @@ jobs:
         run: cargo tauri android init --ci
       - name: PDFium for each Android ABI
         run: |
+          scripts/fetch-pandoc.sh
           scripts/fetch-pdfium.sh android-arm64 android-arm android-x86 android-x64
           J=crates/fo-app/gen/android/app/src/main/jniLibs
           for pair in arm64:arm64-v8a arm:armeabi-v7a x86:x86 x64:x86_64; do

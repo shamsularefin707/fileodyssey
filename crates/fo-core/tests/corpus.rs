@@ -31,7 +31,9 @@ fn sources() -> Vec<PathBuf> {
     let mut v: Vec<PathBuf> = std::fs::read_dir(corpus())
         .unwrap()
         .map(|e| e.unwrap().path())
-        .filter(|p| p.is_file() && p.extension().is_some_and(|e| e != "json"))
+        .filter(|p| {
+            p.is_file() && p.extension().is_some_and(|e| e != "json") && !p.ends_with("README.md")
+        })
         .collect();
     v.sort();
     v

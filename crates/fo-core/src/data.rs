@@ -20,7 +20,7 @@ fn fail(m: impl Into<String>) -> ToolError {
 /// The delimiter used most on the first line: comma, semicolon or tab.
 fn sniff(text: &str) -> u8 {
     let first = text.lines().next().unwrap_or("");
-    [b',', b';', b'\t']
+    (*b",;\t")
         .into_iter()
         .max_by_key(|d| first.bytes().filter(|b| b == d).count())
         .unwrap_or(b',')
@@ -222,7 +222,7 @@ impl Tool for DataConvert {
                     .unwrap_or_default();
                 let ws = wb.add_worksheet();
                 let x = |e: rust_xlsxwriter::XlsxError| fail(e.to_string());
-                ws.set_name(&sheet_name(&stem)).map_err(x)?;
+                ws.set_name(sheet_name(&stem)).map_err(x)?;
                 for (c, h) in table.0.iter().enumerate() {
                     ws.write_string_with_format(0, c as u16, h, &bold)
                         .map_err(x)?;
