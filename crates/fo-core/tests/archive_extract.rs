@@ -190,3 +190,101 @@ fn budget_scales_with_archive_size() {
     assert_eq!(Budget::new(10 << 20).limit_bytes(), 250 * (10u64 << 20));
     assert_eq!(Budget::new(1 << 40).limit_bytes(), 16 << 30);
 }
+
+#[test]
+fn safe_path_rejects_windows_tricks() {
+    for bad in [
+        "x/C:/Users/Public/evil.exe",
+        "a.txt:stream",
+        "CON",
+        "dir/nul",
+        "aux.txt",
+        "COM1.log",
+        "name.",
+        "name ",
+        "sub/trailing./f.txt",
+    ] {
+        assert_eq!(safe_path(bad), None, "{bad}");
+    }
+    assert_eq!(safe_path("console.txt"), Some(PathBuf::from("console.txt")));
+    assert_eq!(safe_path("a.b/c.d"), Some(PathBuf::from("a.b/c.d")));
+}
+
+fn raw_tar_entry(kind: u8, name: &str, data: &[u8]) -> Vec<u8> {
+    let mut h = tar::Header::new_gnu();
+    h.set_entry_type(tar::EntryType::new(kind));
+    h.set_path(name).unwrap();
+    h.set_size(data.len() as u64);
+    h.set_cksum();
+    let mut out = h.as_bytes().to_vec();
+    out.extend_from_slice(data);
+    out.resize(out.len().div_ceil(512) * 512, 0);
+    out
+}
+
+#[test]
+fn tar_long_name_header_is_charged_to_the_budget() {
+    let d = TempDir::new().unwrap();
+    // A GNU long-name ('L') record whose data is 4 MiB; tar reads it into memory.
+    let mut tar = raw_tar_entry(b'L', "././@LongLink", &vec![b'a'; 4 << 20]);
+    tar.extend(raw_tar_entry(b'0', "x.txt", b"x"));
+    tar.extend(vec![0u8; 1024]);
+    let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    gz.write_all(&tar).unwrap();
+    let src = write(&d, "long.tar.gz", &gz.finish().unwrap());
+    let dest = d.path().join("out");
+    std::fs::create_dir(&dest).unwrap();
+    let err = extract(
+        &src,
+        &FileKind::Archive(ArchiveFormat::TarGz),
+        &dest,
+        Budget::with_limit(1 << 20),
+        &CancelToken::new(),
+    )
+    .err()
+    .unwrap();
+    assert!(
+        matches!(&err, ToolError::Failed(m) if m.starts_with("This archive expands to more than")),
+        "{err:?}"
+    );
+}
+
+#[test]
+fn pax_global_header_is_not_a_loss() {
+    let d = TempDir::new().unwrap();
+    let mut tar = raw_tar_entry(
+        b'g',
+        "pax_global_header",
+        b"52 comment=0123456789abcdef0123456789abcdef01234567\n",
+    );
+    tar.extend(raw_tar_entry(b'0', "repo/readme.txt", b"hi"));
+    tar.extend(vec![0u8; 1024]);
+    let src = write(&d, "gh.tar", &tar);
+    let dest = d.path().join("out");
+    std::fs::create_dir(&dest).unwrap();
+    let r = run(&src, ArchiveFormat::Tar, &dest).unwrap();
+    assert_eq!((r.files, r.skipped_links, r.file_entries()), (1, 0, 1));
+}
+
+#[test]
+fn duplicate_entry_names_are_renamed_not_overwritten() {
+    let d = TempDir::new().unwrap();
+    let src = write(
+        &d,
+        "dup.tar",
+        &tar_bytes(&[("a.txt", b"one"), ("A.txt", b"two"), ("a.txt", b"three")]),
+    );
+    let dest = d.path().join("out");
+    std::fs::create_dir(&dest).unwrap();
+    let r = run(&src, ArchiveFormat::Tar, &dest).unwrap();
+    assert_eq!((r.files, r.renamed), (3, 2));
+    let mut got: Vec<Vec<u8>> = std::fs::read_dir(&dest)
+        .unwrap()
+        .map(|e| std::fs::read(e.unwrap().path()).unwrap())
+        .collect();
+    got.sort();
+    assert_eq!(
+        got,
+        vec![b"one".to_vec(), b"three".to_vec(), b"two".to_vec()]
+    );
+}

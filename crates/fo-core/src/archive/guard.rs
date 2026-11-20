@@ -9,11 +9,13 @@ const MAX_LIMIT: u64 = 16 << 30;
 const RATIO: u64 = 250;
 
 /// A relative path that stays inside the destination, or `None`.
-/// Rejects absolute paths, drive prefixes, `..`, NULs and empty names.
+/// Rejects absolute paths, drive prefixes (anywhere, since on Windows
+/// `push("C:")` replaces the whole path), `..`, NTFS streams (`a:b`),
+/// reserved device names (`CON`, `aux.txt`), names ending in a dot or space,
+/// control characters and empty names.
 pub fn safe_path(name: &str) -> Option<PathBuf> {
     let n = name.replace('\\', "/");
-    let bytes = n.as_bytes();
-    if n.starts_with('/') || (bytes.len() >= 2 && bytes[1] == b':') {
+    if n.starts_with('/') {
         return None;
     }
     let mut out = PathBuf::new();
@@ -21,11 +23,37 @@ pub fn safe_path(name: &str) -> Option<PathBuf> {
         match part {
             "" | "." => continue,
             ".." => return None,
-            p if p.contains('\0') => return None,
+            p if !safe_component(p) => return None,
             p => out.push(p),
         }
     }
-    (!out.as_os_str().is_empty()).then_some(out)
+    let all_normal = out
+        .components()
+        .all(|c| matches!(c, std::path::Component::Normal(_)));
+    (all_normal && !out.as_os_str().is_empty()).then_some(out)
+}
+
+fn safe_component(p: &str) -> bool {
+    const RESERVED: &[&str] = &["CON", "PRN", "AUX", "NUL"];
+    if p.chars()
+        .any(|c| c.is_control() || matches!(c, ':' | '<' | '>' | '"' | '|' | '?' | '*'))
+    {
+        return false;
+    }
+    if p.ends_with('.') || p.ends_with(' ') {
+        return false;
+    }
+    let base = p
+        .split('.')
+        .next()
+        .unwrap_or("")
+        .trim_end()
+        .to_ascii_uppercase();
+    let device = RESERVED.contains(&base.as_str())
+        || ((base.starts_with("COM") || base.starts_with("LPT"))
+            && base.len() == 4
+            && base.as_bytes()[3].is_ascii_digit());
+    !device
 }
 
 /// Counts bytes actually written; header sizes are never trusted.

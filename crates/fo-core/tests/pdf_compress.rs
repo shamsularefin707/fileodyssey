@@ -2,6 +2,7 @@ use fo_core::image::pdf::{write_pdf, PageSize, PdfPage};
 use fo_core::pdfopt::{compress, Preset};
 use fo_types::Verdict;
 use image::{DynamicImage, ImageBuffer, Rgb, Rgba};
+use lopdf::dictionary;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
@@ -189,4 +190,85 @@ fn not_a_pdf_fails_clearly() {
         }
         other => panic!("{:?}", other.map(|r| r.warnings)),
     }
+}
+
+/// Text PDF plus an XMP metadata stream and a widget with an empty appearance.
+fn form_pdf(dir: &TempDir) -> PathBuf {
+    let src = text_pdf(dir);
+    let mut doc = lopdf::Document::load(&src).unwrap();
+    let xmp = lopdf::Stream::new(
+        dictionary! { "Type" => "Metadata", "Subtype" => "XML" },
+        b"<?xpacket begin=''?><x:xmpmeta xmlns:x='adobe:ns:meta/'></x:xmpmeta><?xpacket end='w'?>"
+            .repeat(20),
+    );
+    let xmp_id = doc.add_object(xmp);
+    let empty_ap = doc.add_object(lopdf::Stream::new(dictionary! { "Type" => "XObject", "Subtype" => "Form", "BBox" => vec![0.into(), 0.into(), 10.into(), 10.into()] }, vec![]));
+    let widget = doc.add_object(dictionary! {
+        "Type" => "Annot", "Subtype" => "Widget", "Rect" => vec![0.into(), 0.into(), 10.into(), 10.into()],
+        "AP" => dictionary! { "N" => empty_ap },
+    });
+    let catalog_id = doc.trailer.get(b"Root").unwrap().as_reference().unwrap();
+    doc.get_object_mut(catalog_id)
+        .unwrap()
+        .as_dict_mut()
+        .unwrap()
+        .set("Metadata", xmp_id);
+    let page_id = *doc.get_pages().values().next().unwrap();
+    doc.get_object_mut(page_id)
+        .unwrap()
+        .as_dict_mut()
+        .unwrap()
+        .set("Annots", vec![widget.into()]);
+    let p = dir.path().join("form.pdf");
+    doc.save(&p).unwrap();
+    p
+}
+
+#[test]
+fn lossless_keeps_xmp_uncompressed_and_empty_appearances() {
+    let d = TempDir::new().unwrap();
+    let src = form_pdf(&d);
+    let out = d.path().join("out.pdf");
+    compress(&src, Preset::Lossless, &out).unwrap();
+    assert_eq!(page_count(&out), 1);
+    let doc = lopdf::Document::load(&out).unwrap();
+    let catalog = doc.catalog().unwrap();
+    let xmp = doc
+        .get_object(catalog.get(b"Metadata").unwrap().as_reference().unwrap())
+        .unwrap()
+        .as_stream()
+        .unwrap();
+    assert!(
+        xmp.dict.get(b"Filter").is_err(),
+        "XMP metadata must stay unfiltered (PDF/A)"
+    );
+    let page_id = *doc.get_pages().values().next().unwrap();
+    let annots = doc
+        .get_object(page_id)
+        .unwrap()
+        .as_dict()
+        .unwrap()
+        .get(b"Annots")
+        .unwrap()
+        .as_array()
+        .unwrap()
+        .clone();
+    let widget = doc
+        .get_object(annots[0].as_reference().unwrap())
+        .unwrap()
+        .as_dict()
+        .unwrap();
+    let n = widget
+        .get(b"AP")
+        .unwrap()
+        .as_dict()
+        .unwrap()
+        .get(b"N")
+        .unwrap()
+        .as_reference()
+        .unwrap();
+    assert!(
+        doc.get_object(n).is_ok(),
+        "empty appearance stream was deleted"
+    );
 }

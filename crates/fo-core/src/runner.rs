@@ -277,11 +277,18 @@ fn place_dir(src: &Path, input: &Path, out_dir: &Path, label: &str) -> std::io::
             Err(e) => return Err(e),
         }
     };
-    for entry in std::fs::read_dir(src)? {
-        let entry = entry?;
-        std::fs::rename(entry.path(), dest.join(entry.file_name()))?;
+    let moved = (|| {
+        for entry in std::fs::read_dir(src)? {
+            let entry = entry?;
+            std::fs::rename(entry.path(), dest.join(entry.file_name()))?;
+        }
+        std::fs::remove_dir(src)
+    })();
+    if let Err(e) = moved {
+        // Don't leave a half-filled "(extracted)" folder behind.
+        let _ = std::fs::remove_dir_all(&dest);
+        return Err(e);
     }
-    std::fs::remove_dir(src)?;
     Ok(dest.to_string_lossy().into_owned())
 }
 

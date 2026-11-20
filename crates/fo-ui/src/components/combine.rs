@@ -30,7 +30,7 @@ pub fn CombineBar() -> impl IntoView {
     view! {
         <For
             each=candidates
-            key=|(t, paths)| (t.id.clone(), paths.len())
+            key=|(t, paths)| (t.id.clone(), paths.clone())
             children=move |(tool, paths)| view! { <Bar tool=tool paths=paths/> }
         />
     }

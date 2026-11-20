@@ -98,6 +98,10 @@ fn plain_image(st: &Stream) -> Option<image::DynamicImage> {
         _ => false,
     };
     if single(b"DCTDecode") {
+        // e.g. /ColorTransform 0 would decode with the wrong colours.
+        if st.dict.has(b"DecodeParms") {
+            return None;
+        }
         let img =
             image::load_from_memory_with_format(&st.content, image::ImageFormat::Jpeg).ok()?;
         return (img.width() == w && img.height() == h).then_some(img);
@@ -105,13 +109,15 @@ fn plain_image(st: &Stream) -> Option<image::DynamicImage> {
     if filter.is_some() && !single(b"FlateDecode") {
         return None;
     }
+    let comps = if gray { 1 } else { 3 };
+    let expected = (w * h) as usize * comps;
+    // Never inflate beyond what the declared size can hold (bomb guard).
     let raw = if filter.is_some() {
-        st.decompressed_content().ok()?
+        st.decompressed_content_with_limit(expected + 1).ok()?
     } else {
         st.content.clone()
     };
-    let comps = if gray { 1 } else { 3 };
-    if raw.len() != (w * h) as usize * comps {
+    if raw.len() != expected {
         return None;
     }
     if gray {
@@ -223,7 +229,16 @@ pub fn compress(input: &Path, preset: Preset, out: &Path) -> Result<FidelityRepo
             ));
         }
     }
-    doc.delete_zero_length_streams();
+    // Empty streams are kept: they can be referenced (e.g. an empty widget
+    // appearance), and deleting them leaves dangling references.
+    // XMP metadata stays unfiltered so tools (and PDF/A) can read it.
+    for obj in doc.objects.values_mut() {
+        if let Object::Stream(st) = obj {
+            if name_is(st, b"Type", b"Metadata") {
+                st.allows_compression = false;
+            }
+        }
+    }
     doc.prune_objects();
     doc.renumber_objects();
     doc.compress();

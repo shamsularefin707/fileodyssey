@@ -446,6 +446,14 @@ pub async fn invoke(cmd: &str, args: JsValue) -> Result<JsValue, String> {
         "pick_folder" => to_js(&Some("/home/you/Desktop")),
         "start_job" => {
             let req: JobRequest = arg(&args, "req").ok_or("bad request")?;
+            // Test hook: browser tests read the last request from here.
+            if let (Some(w), Ok(json)) = (web_sys::window(), serde_json::to_string(&req)) {
+                let _ = js_sys::Reflect::set(
+                    &w,
+                    &JsValue::from_str("__fo_last_job"),
+                    &JsValue::from_str(&json),
+                );
+            }
             let id = NEXT_JOB.with(|n| {
                 let mut n = n.borrow_mut();
                 *n += 1;
