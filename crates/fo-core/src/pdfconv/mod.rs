@@ -49,6 +49,10 @@ pub struct PageContent {
     pub glyphs: Vec<Glyph>,
     pub images: Vec<PageImage>,
     pub links: Vec<PageLink>,
+    /// Boxes `[x0, y0, x1, y1]` of drawing operations that draw only spaces.
+    /// Some producers (Chrome with complex scripts) draw each word gap this
+    /// way; when present they are the reliable word boundaries.
+    pub spaces: Vec<[f32; 4]>,
 }
 pub mod ast;
 pub mod layout;

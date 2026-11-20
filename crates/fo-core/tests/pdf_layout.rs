@@ -30,6 +30,7 @@ fn page(glyphs: Vec<Glyph>) -> PageContent {
         glyphs,
         images: vec![],
         links: vec![],
+        spaces: vec![],
     }
 }
 
@@ -291,4 +292,57 @@ fn stream_order_inside_a_line_is_kept_and_page_numbers_drop() {
         3,
         "one paragraph per page, no merging across pages: {t:?}"
     );
+}
+
+fn glyph(text: &str, x0: f32, x1: f32, y0: f32, y1: f32, generated: bool) -> Glyph {
+    Glyph {
+        text: text.into(),
+        x0,
+        y0,
+        x1,
+        y1,
+        size: 20.0,
+        bold: false,
+        italic: false,
+        mono: false,
+        generated,
+        hyphen: false,
+    }
+}
+
+/// Chrome draws each word gap of complex scripts as its own (empty) space
+/// object while PDFium generates a space between every cluster: the drawn
+/// spaces decide.
+#[test]
+fn drawn_spaces_decide_word_boundaries() {
+    let g = vec![
+        glyph("ab", 50.0, 70.0, 40.0, 60.0, false),
+        glyph(" ", 70.0, 70.0, 60.0, 60.0, true),
+        glyph("cd", 74.0, 94.0, 40.0, 60.0, false),
+        glyph(" ", 94.0, 94.0, 60.0, 60.0, true),
+        glyph("ef", 98.0, 118.0, 40.0, 60.0, false),
+    ];
+    let mut p = page(g);
+    // Both gaps are 0.2em; one drawn space, between "cd" and "ef", on the baseline.
+    p.spaces = vec![[96.0, 60.5, 96.0, 60.5]];
+    assert_eq!(texts(&layout(&[p])), vec!["abcd ef"]);
+}
+
+/// A tiny mark glyph whose text map repeats its cluster, and the full-size
+/// glyphs after it that repeat the rest of the cluster, are dropped once.
+#[test]
+fn mark_copies_of_a_cluster_are_dropped() {
+    let g = vec![
+        glyph("p", 50.0, 55.0, 40.0, 60.0, false),
+        glyph("u", 55.0, 60.0, 40.0, 60.0, false),
+        glyph("r", 60.0, 65.0, 40.0, 60.0, false),
+        glyph("e", 65.0, 70.0, 40.0, 60.0, false),
+        // Mark below "pu": tiny, repeats "p", "u"; then "r", "e" repeat too.
+        glyph("p", 56.0, 58.0, 58.0, 63.0, false),
+        glyph("u", 58.0, 60.0, 58.0, 63.0, false),
+        glyph("r", 70.0, 73.0, 40.0, 60.0, false),
+        glyph("e", 73.0, 76.0, 40.0, 60.0, false),
+        glyph("x", 76.0, 81.0, 40.0, 60.0, false),
+    ];
+    assert_eq!(texts(&layout(&[page(g)])), vec!["purex"]);
 }

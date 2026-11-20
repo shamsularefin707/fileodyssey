@@ -330,16 +330,31 @@ fn rect_tl(r: PdfRect, ph: f32) -> (f32, f32, f32, f32) {
     )
 }
 
-fn weight_is_bold(w: Option<PdfFontWeight>) -> bool {
-    matches!(
-        w,
-        Some(
-            PdfFontWeight::Weight600
-                | PdfFontWeight::Weight700Bold
-                | PdfFontWeight::Weight800
-                | PdfFontWeight::Weight900
-        )
-    ) || matches!(w, Some(PdfFontWeight::Custom(n)) if n >= 600)
+fn push_space(obj: &PdfPageObject, ph: f32, out: &mut Vec<[f32; 4]>) {
+    if let Some(form) = obj.as_x_object_form_object() {
+        for i in 0..form.len() {
+            if let Ok(child) = form.get(i) {
+                push_space(&child, ph, out);
+            }
+        }
+        return;
+    }
+    let Some(t) = obj.as_text_object() else {
+        return;
+    };
+    let text = t.text();
+    if !text.chars().all(char::is_whitespace) {
+        return;
+    }
+    if let Ok(b) = obj.bounds() {
+        let (x0, y0, x1, y1) = rect_tl(b.to_rect(), ph);
+        // An object with no mapped text counts only when it draws nothing
+        // (a space glyph in a font with no ToUnicode entry for it); one with
+        // ink is a glyph whose text lives in a marked-content span.
+        if !text.is_empty() || x1 - x0 < 0.5 {
+            out.push([x0, y0, x1, y1]);
+        }
+    }
 }
 
 fn push_image(obj: &PdfPageObject, ph: f32, out: &mut Vec<PageImage>) {
@@ -413,10 +428,13 @@ fn extract(doc: &PdfDocument) -> Result<Vec<PageContent>, String> {
                     x1,
                     y1,
                     size: ch.scaled_font_size().value,
-                    bold: weight_is_bold(ch.font_weight())
+                    // Font names are reliable; weights often aren't recorded and
+                    // PDFium's guess calls regular text bold.
+                    bold: ch.font_is_bold_reenforced()
                         || name.contains("bold")
                         || name.contains("black")
-                        || name.contains("heavy"),
+                        || name.contains("heavy")
+                        || name.contains("semibold"),
                     italic: ch.font_is_italic()
                         || name.contains("italic")
                         || name.contains("oblique"),
@@ -430,6 +448,7 @@ fn extract(doc: &PdfDocument) -> Result<Vec<PageContent>, String> {
         }
         for obj in page.objects().iter() {
             push_image(&obj, ph, &mut pc.images);
+            push_space(&obj, ph, &mut pc.spaces);
         }
         for link in page.links().iter() {
             let Some(PdfAction::Uri(a)) = link.action() else {

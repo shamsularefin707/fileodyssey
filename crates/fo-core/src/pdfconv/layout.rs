@@ -96,6 +96,8 @@ pub fn strip_hyphen(t: &str) -> &str {
 #[derive(Clone)]
 struct Frag {
     line: Line,
+    /// Gaps (in em) at each `MAYBE_SPACE` placeholder, in order.
+    gaps: Vec<f32>,
     last_x0: f32,
     last_x1: f32,
     last_ymid: f32,
@@ -139,8 +141,13 @@ fn fragments(page: &PageContent) -> Vec<Line> {
     let mut out = Vec::new();
     let mut cur: Option<Frag> = None;
     let mut space = false;
+    let mut real_space = false;
+    let mut recent: Vec<String> = Vec::new();
+    // Index in `recent` of the last glyph a mark copy repeated (see below).
+    let mut dup: Option<usize> = None;
     let finish = |cur: &mut Option<Frag>, out: &mut Vec<Line>| {
-        if let Some(f) = cur.take() {
+        if let Some(mut f) = cur.take() {
+            resolve_spaces(&mut f);
             if !f.line.text().trim().is_empty() {
                 out.push(f.line);
             }
@@ -155,21 +162,62 @@ fn fragments(page: &PageContent) -> Vec<Line> {
         }
         if blank {
             space = true;
+            real_space |= !g.generated;
             continue;
         }
         if g.x1 <= g.x0 && g.y1 <= g.y0 {
             continue;
         }
         let ymid = (g.y0 + g.y1) / 2.0;
+        // A tiny glyph repeating text just drawn is a mark (e.g. a Bengali
+        // vowel sign below its letter) whose text map repeats the cluster.
+        // Its text map repeats the cluster: the glyphs of the cluster drawn
+        // just after it, at full size, repeat theirs too (in order), and are
+        // dropped while they keep matching what followed the repeated part.
+        let next_dup = dup.filter(|&p| recent.get(p + 1) == Some(&g.text));
+        if g.y1 - g.y0 < 0.45 * g.size {
+            if let Some(p) = next_dup {
+                dup = Some(p + 1);
+                continue;
+            }
+            if let Some(i) = recent.iter().rposition(|t| *t == g.text) {
+                dup = Some(i);
+                continue;
+            }
+            if (1..=recent.len()).any(|k| recent[recent.len() - k..].concat() == g.text) {
+                dup = Some(recent.len() - 1);
+                continue;
+            }
+        } else if let Some(p) = next_dup {
+            dup = Some(p + 1);
+            continue;
+        }
+        dup = None;
+        let mut gap_em = 0.0;
         if let Some(f) = &cur {
+            gap_em = (g.x0 - f.last_x1) / g.size.max(1.0);
+            if !page.spaces.is_empty() {
+                // Drawn spaces decide: is one between the last glyph and this?
+                let (a, b) = (f.last_x1.min(g.x0) - 1.0, f.last_x1.max(g.x0) + 1.0);
+                let drawn = page.spaces.iter().any(|s| {
+                    let cx = (s[0] + s[2]) / 2.0;
+                    let pad = 0.3 * g.size;
+                    cx >= a && cx <= b && s[1] <= g.y1 + pad && s[3] >= g.y0 - pad
+                });
+                gap_em = if drawn { 1.0 } else { 0.0 };
+            }
             let fs = g.size.max(f.last_size).max(1.0);
-            let vert = (ymid - f.last_ymid).abs() > 0.55 * fs;
+            // Superscripts and subscripts are smaller and shifted but belong to
+            // the line they sit on.
+            let script = g.size < 0.85 * f.last_size || f.last_size < 0.85 * g.size;
+            let vert = (ymid - f.last_ymid).abs() > if script { 0.9 } else { 0.55 } * fs;
             let gap = g.x0 - f.last_x1;
             let back = g.x1 < f.last_x0 - g.size.max(1.0);
             if vert || back || gap > 1.0 * fs {
                 finish(&mut cur, &mut out);
                 space = false;
-            } else if gap > 0.22 * g.size {
+            } else if gap > 0.3 * g.size {
+                // A visible gap with no space character (some producers draw none).
                 space = true;
             }
         }
@@ -187,13 +235,23 @@ fn fragments(page: &PageContent) -> Vec<Line> {
             last_x1: g.x1,
             last_ymid: ymid,
             last_size: g.size,
+            gaps: Vec::new(),
         });
         let l = &mut f.line;
         let style = |s: &Span| {
             s.bold == g.bold && s.italic == g.italic && s.mono == g.mono && s.link == link
         };
         if space && !l.spans.is_empty() {
-            l.spans.last_mut().expect("non-empty").text.push(' ');
+            if real_space {
+                l.spans.last_mut().expect("non-empty").text.push(' ');
+            } else {
+                l.spans
+                    .last_mut()
+                    .expect("non-empty")
+                    .text
+                    .push(MAYBE_SPACE);
+                f.gaps.push(gap_em);
+            }
         }
         match l.spans.last_mut() {
             Some(s) if style(s) => s.text.push_str(&g.text),
@@ -217,9 +275,62 @@ fn fragments(page: &PageContent) -> Vec<Line> {
         f.last_ymid = ymid;
         f.last_size = g.size;
         space = false;
+        real_space = false;
+        recent.push(g.text.clone());
+        if recent.len() > 8 {
+            recent.remove(0);
+        }
     }
     finish(&mut cur, &mut out);
     out
+}
+
+/// Placeholder for "maybe a word space", decided per line by `resolve_spaces`.
+const MAYBE_SPACE: char = '\u{E000}';
+
+/// Some producers (Chrome with Bengali, for one) draw no spaces and place
+/// every cluster separately, so PDFium proposes a space between clusters
+/// too. Within one line those gaps fall in two groups — small ones inside
+/// words, larger ones between words — so split at the biggest jump. Lines
+/// whose gaps are all alike (Latin, justified or not) keep them all.
+fn resolve_spaces(f: &mut Frag) {
+    if f.gaps.is_empty() {
+        return;
+    }
+    let mut g = f.gaps.clone();
+    g.sort_by(f32::total_cmp);
+    let mut threshold = 0.1;
+    if g.len() >= 3 {
+        // Only a jump just above the inside-word range counts; jumps among
+        // word gaps (0.3em vs 0.7em) are not a split.
+        let best = (0..g.len() - 1)
+            .filter(|&i| g[i] <= 0.2)
+            .map(|i| (i, g[i + 1] / g[i].max(0.02)))
+            .max_by(|a, b| a.1.total_cmp(&b.1));
+        if let Some((i, ratio)) = best {
+            if ratio >= 1.35 {
+                threshold = (g[i] + g[i + 1]) / 2.0;
+            }
+        }
+    } else {
+        threshold = 0.15;
+    }
+
+    let mut k = 0;
+    for s in &mut f.line.spans {
+        let mut out = String::with_capacity(s.text.len());
+        for c in s.text.chars() {
+            if c == MAYBE_SPACE {
+                if f.gaps[k] > threshold {
+                    out.push(' ');
+                }
+                k += 1;
+            } else {
+                out.push(c);
+            }
+        }
+        s.text = out;
+    }
 }
 
 // ------------------------------------------------------------------ margins
@@ -422,6 +533,12 @@ fn leaf_blocks(items: Vec<Item>, out: &mut Vec<Proto>) {
         }
     }
     let lines = join_same_baseline(texts);
+    // A line that stops well short of the column and ends a sentence ends
+    // its paragraph (list items whose bullets are drawn, not text).
+    let col_x0 = lines.iter().map(|l| l.x0).fold(f32::MAX, f32::min);
+    let col_x1 = lines.iter().map(|l| l.x1).fold(f32::MIN, f32::max);
+    let col_w = (col_x1 - col_x0).max(1.0);
+    let lines_in_leaf = lines.len();
     let mut cur: Option<Proto> = None;
     let mut prev: Option<Line> = None;
     for l in lines {
@@ -433,11 +550,13 @@ fn leaf_blocks(items: Vec<Item>, out: &mut Vec<Proto>) {
                 let weight_change = l.bold != p.bold;
                 let sentence_end = p.text().trim_end().ends_with(['.', '!', '?', ':', '।']);
                 let indent = l.x0 > c.lines[0].x0 + 1.5 * l.size && sentence_end;
+                let short_end = sentence_end && (p.x1 - col_x0) < 0.7 * col_w && lines_in_leaf > 2;
                 marker.is_some()
                     || gap > 0.6 * l.size
                     || size_change
                     || weight_change
                     || indent
+                    || short_end
                     || gap < -0.5 * l.size
             }
             _ => true,
