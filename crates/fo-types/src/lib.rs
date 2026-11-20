@@ -3,6 +3,9 @@
 
 use serde::{Deserialize, Serialize};
 
+mod reader;
+pub use reader::*;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ImageFormat {

@@ -5,6 +5,7 @@ pub mod naming;
 pub mod office;
 pub mod pdfopt;
 pub mod qr;
+pub mod reader;
 pub mod registry;
 pub mod runner;
 pub mod tool;
