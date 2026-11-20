@@ -43,3 +43,4 @@ pub trait PandocEngine: Send + Sync {
     /// Runs one conversion. `Err` carries Pandoc's message.
     fn run(&self, req: PandocRequest, cancel: &CancelToken) -> Result<PandocResult, String>;
 }
+pub mod ast;
