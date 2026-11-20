@@ -3,6 +3,7 @@ mod file_list;
 mod jobs;
 mod pond;
 mod rail;
+mod reader;
 mod report;
 
 use crate::bridge::{invoke, is_preview, listen};
@@ -35,6 +36,15 @@ pub struct AppCtx {
     pub ripple: RwSignal<u32>,
     /// path → option values the user changed
     pub options: RwSignal<HashMap<String, serde_json::Value>>,
+    /// The document open in the Read tab.
+    pub reading: RwSignal<Option<ReaderView>>,
+    pub read_error: RwSignal<Option<String>>,
+    pub read_busy: RwSignal<bool>,
+}
+
+#[derive(Serialize)]
+struct PathArg {
+    path: String,
 }
 
 #[derive(Deserialize)]
@@ -98,7 +108,41 @@ impl AppCtx {
                 }
             });
             self.errors.set(errs);
+            // On the Read tab, a new readable file opens straight away.
+            if self.tab.get_untracked() == Category::Read {
+                if let Some(e) = entries
+                    .iter()
+                    .find(|e| fo_ui::reading::readable(&e.file.kind))
+                {
+                    self.open_reader(e.file.path.clone());
+                }
+            }
         });
+    }
+
+    pub fn open_reader(self, path: String) {
+        self.read_busy.set(true);
+        self.read_error.set(None);
+        spawn_local(async move {
+            match invoke::<_, ReaderView>("reader_open", &PathArg { path }).await {
+                Ok(v) => {
+                    self.close_reader();
+                    self.reading.set(Some(v));
+                    self.tab.set(Category::Read);
+                }
+                Err(e) => self.read_error.set(Some(e)),
+            }
+            self.read_busy.set(false);
+        });
+    }
+
+    pub fn close_reader(self) {
+        if let Some(v) = self.reading.get_untracked() {
+            spawn_local(async move {
+                let _ = invoke::<_, ()>("reader_close", &reader::DocArg { doc: v.doc }).await;
+            });
+        }
+        self.reading.set(None);
     }
 
     pub fn pick_files(self) {
@@ -122,8 +166,12 @@ pub fn App() -> impl IntoView {
         errors: RwSignal::new(vec![]),
         ripple: RwSignal::new(0),
         options: RwSignal::new(HashMap::new()),
+        reading: RwSignal::new(None),
+        read_error: RwSignal::new(None),
+        read_busy: RwSignal::new(false),
     };
     provide_context(ctx);
+    let reading_now = move || ctx.tab.get() == Category::Read && ctx.reading.get().is_some();
 
     listen("job-event", move |ev: JobEvent| {
         ctx.jobs.update(|j| apply_event(j, ev))
@@ -154,16 +202,33 @@ pub fn App() -> impl IntoView {
     view! {
         <div class="shell" class:android=move || ctx.platform.get() == Platform::Android>
             <rail::Rail/>
-            <main class="workbench" id="main">
-                <header class="intro">
-                    <h1>{move || fo_ui::strings::tab_label(ctx.tab.get())}</h1>
-                    <p>{move || fo_ui::strings::tab_intro(ctx.tab.get())}</p>
-                </header>
-                <pond::Pond/>
-                <file_list::FileList/>
-                <combine::CombineBar/>
-                <jobs::Jobs/>
-            </main>
+            <Show
+                when=reading_now
+                fallback=move || view! {
+                    <main class="workbench" id="main">
+                        <header class="intro">
+                            <h1>{move || fo_ui::strings::tab_label(ctx.tab.get())}</h1>
+                            <p>{move || fo_ui::strings::tab_intro(ctx.tab.get())}</p>
+                        </header>
+                        <pond::Pond/>
+                        <Show when=move || ctx.tab.get() == Category::Read>
+                            <Show when=move || ctx.read_busy.get()>
+                                <p class="muted reading-busy" role="status">{fo_ui::strings::OPENING}</p>
+                            </Show>
+                            <Show when=move || ctx.read_error.get().is_some()>
+                                <p class="errors" role="alert">{move || ctx.read_error.get().unwrap_or_default()}</p>
+                            </Show>
+                        </Show>
+                        <file_list::FileList/>
+                        <combine::CombineBar/>
+                        <jobs::Jobs/>
+                    </main>
+                }
+            >
+                <main class="workbench reading" id="main">
+                    <reader::Reader/>
+                </main>
+            </Show>
             <report::ReportDrawer/>
         </div>
     }

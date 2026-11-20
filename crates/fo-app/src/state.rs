@@ -7,6 +7,7 @@ pub struct AppState {
     pub registry: Arc<Registry>,
     pub runner: Runner,
     pub placed: Placed,
+    pub reader: Arc<fo_core::reader::session::Sessions>,
 }
 
 impl AppState {
@@ -30,6 +31,7 @@ impl AppState {
             registry,
             runner,
             placed: Placed::default(),
+            reader: Arc::new(fo_core::reader::session::Sessions::new(vec![])),
         }
     }
 }

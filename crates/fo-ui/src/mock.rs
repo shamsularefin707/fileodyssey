@@ -48,6 +48,7 @@ pub const SAMPLE_FILES: &[&str] = &[
     "/home/you/Pictures/lichen close-up.png",
     "/home/you/Documents/রিপোর্ট ফাইল.docx",
     "/home/you/Downloads/holiday photos.zip",
+    "/home/you/Books/The long walk.epub",
 ];
 
 fn kind_for(path: &str) -> FileKind {
@@ -187,18 +188,14 @@ fn tools_for_kind(kind: FileKind) -> Vec<ToolInfo> {
                 &["pdf"],
                 false,
             ),
-            tool("read.pdf", "Read", Category::Read, &[], false),
         ],
-        FileKind::Markdown | FileKind::Docx => vec![
-            tool(
-                "doc.convert",
-                "Convert document",
-                Category::Convert,
-                &["docx", "pdf", "html", "epub", "odt", "md", "txt"],
-                false,
-            ),
-            tool("read.doc", "Read", Category::Read, &[], false),
-        ],
+        FileKind::Markdown | FileKind::Docx => vec![tool(
+            "doc.convert",
+            "Convert document",
+            Category::Convert,
+            &["docx", "pdf", "html", "epub", "odt", "md", "txt"],
+            false,
+        )],
         FileKind::Image(f) if !matches!(f, ImageFormat::Avif | ImageFormat::Heic) => image_tools(),
         _ => vec![],
     }
@@ -414,6 +411,9 @@ enum Detected {
 }
 
 pub async fn invoke(cmd: &str, args: JsValue) -> Result<JsValue, String> {
+    if let Some(r) = crate::mock_reader::invoke(cmd, &args) {
+        return r;
+    }
     Ok(match cmd {
         "platform" => to_js(&match query("platform").as_deref() {
             Some("android") => Platform::Android,

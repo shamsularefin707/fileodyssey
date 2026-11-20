@@ -1,7 +1,8 @@
 mod commands;
+mod reader;
 mod state;
 
-use tauri::{DragDropEvent, Emitter, WindowEvent};
+use tauri::{DragDropEvent, Emitter, Manager, WindowEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -9,6 +10,16 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(state::AppState::new())
+        .register_asynchronous_uri_scheme_protocol("reader", reader::protocol)
+        .setup(|app| {
+            // Bundled PDFium lives in the app's resources on desktop.
+            if let Ok(dir) = app.path().resource_dir() {
+                app.state::<state::AppState>()
+                    .reader
+                    .add_lib_dir(dir.join("pdfium"));
+            }
+            Ok(())
+        })
         .on_window_event(|window, event| {
             if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) = event {
                 let paths: Vec<String> = paths
@@ -29,6 +40,11 @@ pub fn run() {
             commands::cancel_job,
             commands::open_path,
             commands::reveal_path,
+            reader::reader_open,
+            reader::reader_chapter,
+            reader::reader_text,
+            reader::reader_search,
+            reader::reader_close,
         ])
         .run(tauri::generate_context!())
         .expect("error while running FileOdyssey");
