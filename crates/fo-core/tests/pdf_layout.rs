@@ -1,4 +1,4 @@
-use fo_core::pdfconv::layout::{layout, BlockKind};
+use fo_core::pdfconv::layout::{layout, BlockKind, Script};
 use fo_core::pdfconv::{Glyph, PageContent, PageImage, PageLink};
 
 /// Glyphs for `text` starting at (x, y-top), 0.5em per char.
@@ -370,4 +370,123 @@ fn drawn_spaces_ignored_when_text_has_real_spaces() {
     let mut p = page(g);
     p.spaces = vec![[300.0, 60.5, 300.0, 60.5]];
     assert_eq!(texts(&layout(&[p])), vec!["ab cd ef"]);
+}
+
+/// A raised, smaller "1" after "water." is a superscript in its place, and
+/// the words around it keep their order.
+#[test]
+fn superscript_marker_stays_in_place() {
+    let mut g = Vec::new();
+    run(&mut g, "lying on the water.", 50.0, 100.0, 10.0, false);
+    let x = g.last().unwrap().x1;
+    // 7pt, its bottom 4pt above the line's bottom.
+    run(&mut g, "1", x, 99.0, 7.0, false);
+    let x = g.last().unwrap().x1 + 3.0;
+    run(&mut g, " The next sentence", x, 100.0, 10.0, false);
+    for i in 0..4 {
+        run(
+            &mut g,
+            "filler text to set the body size",
+            50.0,
+            140.0 + 14.0 * i as f32,
+            10.0,
+            false,
+        );
+    }
+    let blocks = layout(&[page(g)]);
+    let spans = &blocks[0].lines[0].spans;
+    let sup: Vec<_> = spans.iter().filter(|s| s.script == Script::Super).collect();
+    assert_eq!(sup.len(), 1, "{spans:?}");
+    assert_eq!(sup[0].text.trim(), "1");
+    assert!(
+        blocks[0]
+            .text()
+            .starts_with("lying on the water.1 The next"),
+        "{}",
+        blocks[0].text()
+    );
+}
+
+#[test]
+fn spans_carry_font_size_and_colour() {
+    let mut g = Vec::new();
+    run(&mut g, "plain ", 50.0, 100.0, 10.0, false);
+    let x = g.last().unwrap().x1;
+    let start = g.len();
+    run(&mut g, "red", x, 100.0, 10.0, false);
+    for c in &mut g[start..] {
+        c.color = [200, 0, 0];
+        c.font = "Times New Roman".into();
+    }
+    let blocks = layout(&[page(g)]);
+    let spans = &blocks[0].lines[0].spans;
+    assert_eq!(spans.len(), 2, "{spans:?}");
+    assert_eq!(
+        (spans[1].color, spans[1].font.as_str()),
+        ([200, 0, 0], "Times New Roman")
+    );
+    assert!((spans[0].size - 10.0).abs() < 0.01 && spans[0].script == Script::Normal);
+}
+
+#[test]
+fn ast_writes_superscripts() {
+    use fo_core::pdfconv::ast::inlines;
+    use fo_core::pdfconv::layout::{Line, Span};
+    let l = Line {
+        spans: vec![
+            Span {
+                text: "water.".into(),
+                size: 10.0,
+                ..Span::default()
+            },
+            Span {
+                text: "1".into(),
+                size: 7.0,
+                script: Script::Super,
+                ..Span::default()
+            },
+            Span {
+                text: " Next".into(),
+                size: 10.0,
+                ..Span::default()
+            },
+        ],
+        ..Line::default()
+    };
+    let v = serde_json::to_string(&inlines(&[l])).unwrap();
+    assert_eq!(
+        v,
+        r#"[{"c":"water.","t":"Str"},{"c":[{"c":"1","t":"Str"}],"t":"Superscript"},{"t":"Space"},{"c":"Next","t":"Str"}]"#
+    );
+}
+
+/// "R. Hossain and T. Alam" is a byline, not a one-item lettered list;
+/// "a. first" followed by "b. second" is a list.
+#[test]
+fn lone_letter_marker_is_not_a_list() {
+    let mut g = Vec::new();
+    run(&mut g, "R. Hossain and T. Alam", 50.0, 100.0, 10.0, false);
+    run(&mut g, "a. first item", 50.0, 140.0, 10.0, false);
+    run(&mut g, "b. second item", 50.0, 154.0, 10.0, false);
+    for i in 0..4 {
+        run(
+            &mut g,
+            "filler text to set the body size",
+            50.0,
+            200.0 + 14.0 * i as f32,
+            10.0,
+            false,
+        );
+    }
+    let blocks = layout(&[page(g)]);
+    assert_eq!(blocks[0].kind, BlockKind::Para);
+    assert_eq!(blocks[0].text(), "R. Hossain and T. Alam");
+    assert!(matches!(
+        blocks[1].kind,
+        BlockKind::ListItem { ordered: true, .. }
+    ));
+    assert!(matches!(
+        blocks[2].kind,
+        BlockKind::ListItem { ordered: true, .. }
+    ));
 }

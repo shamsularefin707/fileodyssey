@@ -1,6 +1,6 @@
 //! Reconstructed blocks → Pandoc JSON AST.
 
-use super::layout::{strip_hyphen, Block, BlockKind, Line, Span};
+use super::layout::{strip_hyphen, Block, BlockKind, Line, Script, Span};
 use serde_json::{json, Value};
 
 /// File name the AST uses for image `i` (0-based, document-wide).
@@ -48,6 +48,11 @@ fn styled(s: &Span, out: &mut Vec<Value>) {
             vec![json!({"t": "Strong", "c": inner})]
         } else {
             inner
+        };
+        let inner = match s.script {
+            Script::Super => vec![json!({"t": "Superscript", "c": inner})],
+            Script::Sub => vec![json!({"t": "Subscript", "c": inner})],
+            Script::Normal => inner,
         };
         out.extend(inner);
     }

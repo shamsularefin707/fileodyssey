@@ -19,13 +19,29 @@
 
 use super::{Glyph, PageContent};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Script {
+    #[default]
+    Normal,
+    Super,
+    Sub,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Span {
     pub text: String,
     pub bold: bool,
     pub italic: bool,
     pub mono: bool,
     pub link: Option<String>,
+    /// Font family, "" when unknown.
+    pub font: String,
+    /// Size in points.
+    pub size: f32,
+    pub color: [u8; 3],
+    pub script: Script,
+    /// Index of the footnote this span marks (it is the note's reference).
+    pub note: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -98,6 +114,8 @@ struct Frag {
     line: Line,
     /// Gaps (in em) at each `MAYBE_SPACE` placeholder, in order.
     gaps: Vec<f32>,
+    /// Bottom edge of each span's glyphs (spans don't mix sizes).
+    bottoms: Vec<f32>,
     last_x0: f32,
     last_x1: f32,
     last_ymid: f32,
@@ -142,6 +160,8 @@ fn fragments(page: &PageContent) -> Vec<Line> {
     let mut cur: Option<Frag> = None;
     let mut space = false;
     let mut real_space = false;
+    // A generated line break was seen since the last drawn glyph.
+    let mut brk = false;
     let mut recent: Vec<String> = Vec::new();
     // Index in `recent` of the last glyph a mark copy repeated (see below).
     let mut dup: Option<usize> = None;
@@ -153,6 +173,7 @@ fn fragments(page: &PageContent) -> Vec<Line> {
     let finish = |cur: &mut Option<Frag>, out: &mut Vec<Line>| {
         if let Some(mut f) = cur.take() {
             resolve_spaces(&mut f);
+            mark_scripts(&mut f);
             if !f.line.text().trim().is_empty() {
                 out.push(f.line);
             }
@@ -161,7 +182,9 @@ fn fragments(page: &PageContent) -> Vec<Line> {
     for g in &page.glyphs {
         let blank = g.text.trim().is_empty() && !matches!(g.text.as_str(), "\u{ad}" | "\u{2}");
         if g.generated && (g.text.contains('\n') || g.text.contains('\r')) {
-            finish(&mut cur, &mut out);
+            // Provisional: PDFium also breaks before a raised superscript
+            // that carries on the same line.
+            brk = true;
             space = false;
             continue;
         }
@@ -218,7 +241,8 @@ fn fragments(page: &PageContent) -> Vec<Line> {
             let vert = (ymid - f.last_ymid).abs() > if script { 0.9 } else { 0.55 } * fs;
             let gap = g.x0 - f.last_x1;
             let back = g.x1 < f.last_x0 - g.size.max(1.0);
-            if vert || back || gap > 1.0 * fs {
+            let carries_on = !vert && !back && gap.abs() < 0.3 * fs;
+            if vert || back || gap > 1.0 * fs || (brk && !carries_on) {
                 finish(&mut cur, &mut out);
                 space = false;
             } else if gap > 0.3 * g.size {
@@ -241,10 +265,17 @@ fn fragments(page: &PageContent) -> Vec<Line> {
             last_ymid: ymid,
             last_size: g.size,
             gaps: Vec::new(),
+            bottoms: Vec::new(),
         });
         let l = &mut f.line;
         let style = |s: &Span| {
-            s.bold == g.bold && s.italic == g.italic && s.mono == g.mono && s.link == link
+            s.bold == g.bold
+                && s.italic == g.italic
+                && s.mono == g.mono
+                && s.link == link
+                && s.font == g.font
+                && s.color == g.color
+                && (s.size - g.size).abs() < 0.25
         };
         if space && !l.spans.is_empty() {
             if real_space {
@@ -259,14 +290,26 @@ fn fragments(page: &PageContent) -> Vec<Line> {
             }
         }
         match l.spans.last_mut() {
-            Some(s) if style(s) => s.text.push_str(&g.text),
-            _ => l.spans.push(Span {
-                text: g.text.clone(),
-                bold: g.bold,
-                italic: g.italic,
-                mono: g.mono,
-                link,
-            }),
+            Some(s) if style(s) => {
+                s.text.push_str(&g.text);
+                if let Some(b) = f.bottoms.last_mut() {
+                    *b = b.max(g.y1);
+                }
+            }
+            _ => {
+                l.spans.push(Span {
+                    text: g.text.clone(),
+                    bold: g.bold,
+                    italic: g.italic,
+                    mono: g.mono,
+                    link,
+                    font: g.font.clone(),
+                    size: g.size,
+                    color: g.color,
+                    ..Span::default()
+                });
+                f.bottoms.push(g.y1);
+            }
         }
         l.x0 = l.x0.min(g.x0);
         l.y0 = l.y0.min(g.y0);
@@ -281,6 +324,7 @@ fn fragments(page: &PageContent) -> Vec<Line> {
         f.last_size = g.size;
         space = false;
         real_space = false;
+        brk = false;
         recent.push(g.text.clone());
         if recent.len() > 8 {
             recent.remove(0);
@@ -288,6 +332,35 @@ fn fragments(page: &PageContent) -> Vec<Line> {
     }
     finish(&mut cur, &mut out);
     out
+}
+
+/// Smaller spans raised above (or dropped below) the line's main text are
+/// superscripts (subscripts). The main text is the size with the most
+/// characters.
+fn mark_scripts(f: &mut Frag) {
+    let mut by_size: Vec<(f32, usize, f32)> = Vec::new();
+    for (s, b) in f.line.spans.iter().zip(&f.bottoms) {
+        let n = s.text.trim().chars().count();
+        match by_size.iter_mut().find(|e| (e.0 - s.size).abs() < 0.25) {
+            Some(e) => {
+                e.1 += n;
+                e.2 = e.2.max(*b);
+            }
+            None => by_size.push((s.size, n, *b)),
+        }
+    }
+    let Some(&(main, _, bottom)) = by_size.iter().max_by_key(|e| e.1) else {
+        return;
+    };
+    for (s, b) in f.line.spans.iter_mut().zip(&f.bottoms) {
+        if s.size < 0.85 * main && !s.text.trim().is_empty() {
+            if *b < bottom - 0.2 * main {
+                s.script = Script::Super;
+            } else if *b > bottom + 0.1 * main {
+                s.script = Script::Sub;
+            }
+        }
+    }
 }
 
 /// Placeholder for "maybe a word space", decided per line by `resolve_spaces`.
@@ -519,6 +592,8 @@ struct Proto {
     lines: Vec<Line>,
     list: Option<bool>,
     image: Option<usize>,
+    /// The list marker taken off the first line ("a. ").
+    marker: String,
 }
 
 fn leaf_blocks(items: Vec<Item>, out: &mut Vec<Proto>) {
@@ -533,6 +608,7 @@ fn leaf_blocks(items: Vec<Item>, out: &mut Vec<Proto>) {
                     lines: vec![],
                     list: None,
                     image: Some(idx),
+                    marker: String::new(),
                 },
             )),
         }
@@ -571,14 +647,17 @@ fn leaf_blocks(items: Vec<Item>, out: &mut Vec<Proto>) {
                 rest.push((c.lines[0].y0, c));
             }
             let mut l = l.clone();
+            let text = l.text();
             let list = marker.map(|(ordered, len)| {
                 strip_marker(&mut l, len);
                 ordered
             });
+            let taken = text.len() - text.trim_start().len() + marker.map_or(0, |m| m.1);
             cur = Some(Proto {
                 lines: vec![l],
                 list,
                 image: None,
+                marker: text.get(..taken).unwrap_or("").trim_start().to_owned(),
             });
         } else if let Some(c) = cur.as_mut() {
             c.lines.push(l.clone());
@@ -634,7 +713,35 @@ pub fn layout(pages: &[PageContent]) -> Vec<Block> {
     classify(protos, body)
 }
 
-fn classify(protos: Vec<Proto>, body: f32) -> Vec<Block> {
+fn classify(mut protos: Vec<Proto>, body: f32) -> Vec<Block> {
+    // A lettered "item" with no neighbour lettered one before or after it is
+    // an initial ("R. Hossain"), not a list.
+    let letter = |p: &Proto| {
+        p.marker
+            .trim_start_matches('(')
+            .chars()
+            .next()
+            .filter(|c| c.is_alphabetic() && p.list == Some(true))
+            .map(|c| c.to_ascii_lowercase() as i32)
+    };
+    let lone: Vec<usize> = (0..protos.len())
+        .filter(|&i| {
+            let Some(c) = letter(&protos[i]) else {
+                return false;
+            };
+            let next_to = |j: Option<usize>, d: i32| {
+                j.and_then(|j| protos.get(j)).and_then(letter) == Some(c + d)
+            };
+            !next_to(i.checked_sub(1), -1) && !next_to(Some(i + 1), 1)
+        })
+        .collect();
+    for i in lone {
+        let p = &mut protos[i];
+        p.list = None;
+        if let Some(s) = p.lines.first_mut().and_then(|l| l.spans.first_mut()) {
+            s.text.insert_str(0, &p.marker);
+        }
+    }
     let size_of = |p: &Proto| {
         let mut s: Vec<f32> = p.lines.iter().map(|l| l.size).collect();
         s.sort_by(f32::total_cmp);
