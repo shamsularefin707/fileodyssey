@@ -359,3 +359,37 @@ fn header_over_right_aligned_numbers_finds_its_columns() {
     assert_eq!(rows[0][1], (1, "Level in metres".into(), 2, 1), "{rows:?}");
     assert_eq!(rows[1][1], (1, "Dawn".into(), 1, 1), "{rows:?}");
 }
+
+/// A ruled table broken across a page: two tables, each with its rows, and
+/// no text lost.
+#[test]
+fn table_split_across_pages_stays_two_tables() {
+    let half = |rows: [[&str; 3]; 3]| {
+        let mut g = Vec::new();
+        cells_3x3(&mut g, rows, false);
+        filler(&mut g);
+        page(g, ruled_3x3(None, None))
+    };
+    let p1 = half([
+        ["Month", "Level", "Note"],
+        ["March", "2.1", "Clear"],
+        ["April", "2.9", "Rain"],
+    ]);
+    let p2 = half([
+        ["May", "2.4", "Falling"],
+        ["June", "2.2", "Low"],
+        ["July", "2.0", "Warm"],
+    ]);
+    let blocks = layout(&[p1, p2]);
+    let t: Vec<&Table> = blocks
+        .iter()
+        .filter_map(|b| match &b.kind {
+            BlockKind::Table(t) => Some(t),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(t.len(), 2);
+    assert_eq!(grid(t[0])[2][0].1, "April");
+    assert_eq!(grid(t[1])[0][0].1, "May");
+    assert_eq!(grid(t[1])[2][2].1, "Warm");
+}

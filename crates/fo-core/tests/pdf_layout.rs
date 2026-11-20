@@ -578,3 +578,33 @@ fn running_header_and_page_numbers_are_kept_apart() {
         .iter()
         .any(|b| b.text().contains("Field notes") || b.text().contains("Page")));
 }
+
+/// "x²" with no note at the page bottom: a superscript, not a broken note.
+#[test]
+fn superscript_without_a_note_stays_a_superscript() {
+    use fo_core::pdfconv::layout::reconstruct;
+    let mut g = Vec::new();
+    for i in 0..6 {
+        sized(
+            &mut g,
+            "ordinary body text of the page",
+            50.0,
+            100.0 + 14.0 * i as f32,
+            10.0,
+        );
+    }
+    sized(&mut g, "the area is x", 50.0, 200.0, 10.0);
+    let x = g.last().unwrap().x1;
+    sized(&mut g, "2", x, 199.0, 7.0);
+    let doc = reconstruct(&[page(g)]);
+    assert!(doc.notes.is_empty());
+    let sup: Vec<_> = doc
+        .blocks
+        .iter()
+        .flat_map(|b| &b.lines)
+        .flat_map(|l| &l.spans)
+        .filter(|s| s.script == Script::Super)
+        .collect();
+    assert_eq!(sup.len(), 1);
+    assert_eq!((sup[0].text.trim(), sup[0].note), ("2", None));
+}
