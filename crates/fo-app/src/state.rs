@@ -27,6 +27,9 @@ impl AppState {
             pandoc.clone(),
         )));
         registry.register(Arc::new(fo_core::data::DataConvert));
+        registry.register(Arc::new(fo_core::pdfconv::tool::PdfConvert::new(
+            pandoc.clone(),
+        )));
         let registry = Arc::new(registry);
         let workers = std::thread::available_parallelism()
             .map(|n| n.get().saturating_sub(1))
@@ -81,6 +84,7 @@ mod tests {
             "office.compress",
             "doc.convert",
             "data.convert",
+            "pdf.convert",
         ] {
             assert!(s.registry.get(id).is_some(), "{id} missing");
         }

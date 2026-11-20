@@ -14,7 +14,7 @@ use fo_types::{FileKind, ReaderBody, ReaderView, SearchHit, TextSpan};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 
 enum Doc {
     Pdf {
@@ -39,8 +39,6 @@ enum Doc {
 pub type Served = Result<(Vec<u8>, &'static str), (u16, String)>;
 
 pub struct Sessions {
-    lib_dirs: Mutex<Vec<PathBuf>>,
-    engine: OnceLock<Result<PdfEngine, String>>,
     docs: Mutex<HashMap<u64, Arc<Doc>>>,
     next: AtomicU64,
     pandoc: Mutex<Option<Arc<dyn PandocEngine>>>,
@@ -52,9 +50,10 @@ fn not_found() -> (u16, String) {
 
 impl Sessions {
     pub fn new(lib_dirs: Vec<PathBuf>) -> Self {
+        for d in lib_dirs {
+            super::pdf::add_lib_dir(d);
+        }
         Self {
-            lib_dirs: Mutex::new(lib_dirs),
-            engine: OnceLock::new(),
             docs: Mutex::new(HashMap::new()),
             next: AtomicU64::new(1),
             pandoc: Mutex::new(None),
@@ -100,17 +99,11 @@ impl Sessions {
 
     /// Adds a folder to look in for PDFium (before the first PDF opens).
     pub fn add_lib_dir(&self, dir: PathBuf) {
-        self.lib_dirs.lock().expect("lib dirs").insert(0, dir);
+        super::pdf::add_lib_dir(dir);
     }
 
-    fn engine(&self) -> Result<&PdfEngine, String> {
-        self.engine
-            .get_or_init(|| {
-                let dirs = self.lib_dirs.lock().expect("lib dirs").clone();
-                PdfEngine::start(&super::pdf::find_pdfium_dirs(&dirs))
-            })
-            .as_ref()
-            .map_err(Clone::clone)
+    fn engine(&self) -> Result<&'static PdfEngine, String> {
+        super::pdf::engine()
     }
 
     fn get(&self, doc: u64) -> Option<Arc<Doc>> {

@@ -5,6 +5,7 @@ pub mod image;
 pub mod naming;
 pub mod office;
 pub mod pandoc;
+pub mod pdfconv;
 pub mod pdfopt;
 pub mod qr;
 pub mod reader;
