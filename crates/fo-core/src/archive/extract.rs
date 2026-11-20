@@ -1,0 +1,207 @@
+//! Safe extraction of zip, 7z, tar and compressed tar archives.
+
+use super::guard::{safe_path, Budget, MAX_ENTRIES};
+use crate::tool::{CancelToken, ToolError};
+use fo_types::{ArchiveFormat, FileKind};
+use std::fs::File;
+use std::io::{BufReader, Read, Write};
+use std::path::Path;
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct ExtractReport {
+    /// Regular files written.
+    pub files: u64,
+    /// Bytes written.
+    pub bytes: u64,
+    /// Every entry seen, including folders and skipped ones.
+    pub entries: u64,
+    pub skipped_unsafe: u64,
+    pub skipped_links: u64,
+    pub skipped_unsupported: u64,
+}
+
+impl ExtractReport {
+    pub fn file_entries(&self) -> u64 {
+        self.files + self.skipped_unsafe + self.skipped_links + self.skipped_unsupported
+    }
+}
+
+fn unreadable(e: impl std::fmt::Display) -> ToolError {
+    ToolError::Failed(format!("Couldn't read this archive: {e}"))
+}
+
+struct Sink<'a> {
+    dest: &'a Path,
+    budget: Budget,
+    cancel: &'a CancelToken,
+    report: ExtractReport,
+}
+
+impl Sink<'_> {
+    fn seen(&mut self) -> Result<(), ToolError> {
+        self.report.entries += 1;
+        if self.report.entries > MAX_ENTRIES {
+            return Err(ToolError::Failed(format!(
+                "This archive has more than {MAX_ENTRIES} entries, which looks unsafe"
+            )));
+        }
+        if self.cancel.is_cancelled() {
+            return Err(ToolError::Cancelled);
+        }
+        Ok(())
+    }
+
+    fn dir(&mut self, name: &str) -> Result<(), ToolError> {
+        match safe_path(name) {
+            Some(rel) => std::fs::create_dir_all(self.dest.join(rel)).map_err(ToolError::from),
+            None => Ok(()), // an unsafe folder entry writes nothing; its files are checked on their own
+        }
+    }
+
+    fn file(&mut self, name: &str, mut data: impl Read) -> Result<(), ToolError> {
+        let Some(rel) = safe_path(name) else {
+            self.report.skipped_unsafe += 1;
+            return Ok(());
+        };
+        let path = self.dest.join(rel);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let mut out = File::create(&path)?;
+        let mut buf = vec![0u8; 64 * 1024];
+        loop {
+            let n = data.read(&mut buf).map_err(unreadable)?;
+            if n == 0 {
+                break;
+            }
+            self.budget.charge(n as u64)?;
+            out.write_all(&buf[..n])?;
+            self.report.bytes += n as u64;
+            if self.cancel.is_cancelled() {
+                return Err(ToolError::Cancelled);
+            }
+        }
+        self.report.files += 1;
+        Ok(())
+    }
+}
+
+pub fn extract(
+    path: &Path,
+    kind: &FileKind,
+    dest: &Path,
+    budget: Budget,
+    cancel: &CancelToken,
+) -> Result<ExtractReport, ToolError> {
+    let mut sink = Sink {
+        dest,
+        budget,
+        cancel,
+        report: ExtractReport::default(),
+    };
+    let open = || File::open(path).map(BufReader::new).map_err(unreadable);
+    match kind {
+        FileKind::Archive(ArchiveFormat::Zip) => zip_entries(open()?, &mut sink)?,
+        FileKind::Archive(ArchiveFormat::Tar) => tar_entries(open()?, &mut sink)?,
+        FileKind::Archive(ArchiveFormat::TarGz) => {
+            tar_entries(flate2::read::MultiGzDecoder::new(open()?), &mut sink)?
+        }
+        FileKind::Archive(ArchiveFormat::TarXz) => {
+            tar_entries(lzma_rust2::XzReader::new(open()?, true), &mut sink)?
+        }
+        FileKind::Archive(ArchiveFormat::TarZst) => {
+            let dec = ruzstd::decoding::StreamingDecoder::new(open()?).map_err(unreadable)?;
+            tar_entries(dec, &mut sink)?
+        }
+        FileKind::Archive(ArchiveFormat::SevenZ) => seven_entries(path, &mut sink)?,
+        _ => {
+            return Err(ToolError::Failed(
+                "This kind of archive isn't supported".into(),
+            ))
+        }
+    }
+    Ok(sink.report)
+}
+
+fn zip_entries(reader: impl Read + std::io::Seek, sink: &mut Sink) -> Result<(), ToolError> {
+    let mut zip = zip::ZipArchive::new(reader).map_err(unreadable)?;
+    for i in 0..zip.len() {
+        sink.seen()?;
+        let entry = match zip.by_index(i) {
+            Ok(e) => e,
+            // Encrypted entries and unsupported methods (bzip2, zstd, PPMd, AES).
+            Err(_) => {
+                sink.report.skipped_unsupported += 1;
+                continue;
+            }
+        };
+        let name = String::from_utf8_lossy(entry.name_raw()).into_owned();
+        if entry.is_symlink() {
+            sink.report.skipped_links += 1;
+        } else if entry.is_dir() {
+            sink.dir(&name)?;
+        } else {
+            sink.file(&name, entry)?;
+        }
+    }
+    Ok(())
+}
+
+fn tar_entries(reader: impl Read, sink: &mut Sink) -> Result<(), ToolError> {
+    let mut archive = tar::Archive::new(reader);
+    for entry in archive.entries().map_err(unreadable)? {
+        sink.seen()?;
+        let entry = entry.map_err(unreadable)?;
+        let name = String::from_utf8_lossy(&entry.path_bytes()).into_owned();
+        match entry.header().entry_type() {
+            tar::EntryType::Regular | tar::EntryType::Continuous => sink.file(&name, entry)?,
+            tar::EntryType::Directory => sink.dir(&name)?,
+            // Pax/GNU metadata records are consumed by `entries()`; anything
+            // else (links, devices, FIFOs) is never written.
+            _ => sink.report.skipped_links += 1,
+        }
+    }
+    Ok(())
+}
+
+fn seven_entries(path: &Path, sink: &mut Sink) -> Result<(), ToolError> {
+    let password_msg =
+        || ToolError::Failed("Password-protected archives aren't supported yet".into());
+    let mut reader = sevenz_rust2::ArchiveReader::open(path, sevenz_rust2::Password::empty())
+        .map_err(|e| {
+            if format!("{e:?}").to_lowercase().contains("password") {
+                password_msg()
+            } else {
+                unreadable(e)
+            }
+        })?;
+    let mut failure: Option<ToolError> = None;
+    let result = reader.for_each_entries(|entry, data| {
+        let step = sink.seen().and_then(|_| {
+            if entry.is_directory() {
+                sink.dir(entry.name())
+            } else if entry.has_stream {
+                sink.file(entry.name(), data)
+            } else {
+                sink.file(entry.name(), std::io::empty())
+            }
+        });
+        match step {
+            Ok(()) => Ok(true),
+            Err(e) => {
+                failure = Some(e);
+                Ok(false)
+            }
+        }
+    });
+    if let Some(e) = failure {
+        return Err(e);
+    }
+    result.map_err(|e| {
+        if format!("{e:?}").to_lowercase().contains("password") {
+            password_msg()
+        } else {
+            unreadable(e)
+        }
+    })
+}

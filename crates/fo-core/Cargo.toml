@@ -8,7 +8,13 @@ license.workspace = true
 fo-types.workspace = true
 serde_json.workspace = true
 infer = "0.22"
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "2.6", default-features = false, features = ["deflate", "deflate64", "lzma"] }
+tar = { version = "0.4", default-features = false }
+flate2 = "1"
+lzma-rust2 = { version = "0.25", default-features = false, features = ["std", "encoder", "xz"] }
+ruzstd = "0.9"
+sevenz-rust2 = { version = "0.25", default-features = false, features = ["compress", "util"] }
+lopdf = { version = "0.47", default-features = false }
 uuid = { version = "1", features = ["v4"] }
 image = { version = "0.25.10", default-features = false, features = ["bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"] }
 ravif = { version = "0.13", default-features = false }
