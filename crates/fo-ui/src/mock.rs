@@ -47,6 +47,7 @@ pub const SAMPLE_FILES: &[&str] = &[
     "/home/you/Pictures/river at dusk.jpg",
     "/home/you/Pictures/lichen close-up.png",
     "/home/you/Documents/রিপোর্ট ফাইল.docx",
+    "/home/you/Downloads/holiday photos.zip",
 ];
 
 fn kind_for(path: &str) -> FileKind {
@@ -62,6 +63,7 @@ fn kind_for(path: &str) -> FileKind {
         "jpg" | "jpeg" => FileKind::Image(ImageFormat::Jpeg),
         "heic" => FileKind::Image(ImageFormat::Heic),
         "zip" => FileKind::Archive(ArchiveFormat::Zip),
+        "7z" => FileKind::Archive(ArchiveFormat::SevenZ),
         _ => FileKind::Unknown,
     }
 }
@@ -85,7 +87,90 @@ fn tool(
     }
 }
 
+fn level_option() -> OptionSpec {
+    opt(
+        "level",
+        "Compression",
+        OptionKind::Choice {
+            choices: vec![
+                ("lossless".into(), "Lossless (nothing changes)".into()),
+                ("balanced".into(), "Balanced (smaller images)".into()),
+                ("strong".into(), "Strong (smallest)".into()),
+            ],
+            default: "balanced".into(),
+        },
+        &[],
+        None,
+    )
+}
+
+/// Mirrors fo-core's archive, PDF and Office compression tools.
+fn compress_tools(kind: FileKind) -> Vec<ToolInfo> {
+    let mut archive = tool(
+        "arc.create",
+        "Put files in an archive",
+        Category::Compress,
+        &["zip", "7z", "tar", "tar.gz", "tar.xz", "tar.zst"],
+        false,
+    );
+    archive.combines = true;
+    archive.options = vec![opt(
+        "level",
+        "Compression level",
+        OptionKind::Slider {
+            min: 1,
+            max: 9,
+            step: 1,
+            default: 6,
+            unit: "".into(),
+        },
+        &["zip", "7z", "tar.gz", "tar.xz"],
+        None,
+    )];
+    let mut out = vec![archive];
+    match kind {
+        FileKind::Pdf => {
+            let mut t = tool(
+                "pdf.compress",
+                "Compress PDF",
+                Category::Compress,
+                &["pdf"],
+                false,
+            );
+            t.options = vec![level_option()];
+            out.push(t);
+        }
+        FileKind::Docx | FileKind::Pptx | FileKind::Xlsx | FileKind::Odt | FileKind::Epub => {
+            let mut t = tool(
+                "office.compress",
+                "Compress document",
+                Category::Compress,
+                &["same"],
+                false,
+            );
+            t.options = vec![level_option()];
+            out.push(t);
+        }
+        FileKind::Archive(_) => out.push(tool(
+            "arc.extract",
+            "Extract archive",
+            Category::Compress,
+            &["folder"],
+            false,
+        )),
+        _ => {}
+    }
+    out
+}
+
 fn tools_for(kind: FileKind) -> Vec<ToolInfo> {
+    let mut tools = tools_for_kind(kind);
+    tools.retain(|t| t.id != "pdf.compress");
+    tools.extend(compress_tools(kind));
+    tools
+}
+
+fn tools_for_kind(kind: FileKind) -> Vec<ToolInfo> {
     match kind {
         FileKind::Pdf => vec![
             tool(
@@ -366,7 +451,7 @@ pub async fn invoke(cmd: &str, args: JsValue) -> Result<JsValue, String> {
                 *n += 1;
                 format!("job-{n}")
             });
-            let units: Vec<String> = if req.tool_id == "img.to_pdf" {
+            let units: Vec<String> = if req.tool_id == "img.to_pdf" || req.tool_id == "arc.create" {
                 req.inputs.first().cloned().into_iter().collect()
             } else {
                 req.inputs.clone()
@@ -488,7 +573,14 @@ fn simulate(job: String, input: String, target: String, step: u32) {
                 .unwrap_or(&input)
                 .to_owned();
             let report = sample_report(input.ends_with(".pdf"));
-            let outputs = vec![format!("{stem} (converted).{target}")];
+            let name = match target.as_str() {
+                "folder" => format!("{stem} (extracted)"),
+                "zip" | "7z" | "tar" | "tar.gz" | "tar.xz" | "tar.zst" => {
+                    format!("{stem} (archive).{target}")
+                }
+                _ => format!("{stem} (converted).{target}"),
+            };
+            let outputs = vec![name];
             emit(
                 "job-event",
                 &JobEvent {

@@ -124,3 +124,34 @@ pub fn visible_options<'a>(
         })
         .collect()
 }
+
+use fo_types::ToolInfo;
+
+/// Fewest files a combining tool needs: a PDF from one image is just a
+/// conversion (offered per file), an archive of one file is still useful.
+fn min_inputs(tool: &ToolInfo) -> usize {
+    if tool.id == "img.to_pdf" {
+        2
+    } else {
+        1
+    }
+}
+
+/// Combining tools for `tab`, each with the listed files it accepts (in list
+/// order). `files` is (path, tools offered for that file).
+pub fn combine_candidates(
+    files: &[(String, Vec<ToolInfo>)],
+    tab: Category,
+) -> Vec<(ToolInfo, Vec<String>)> {
+    let mut out: Vec<(ToolInfo, Vec<String>)> = Vec::new();
+    for (path, tools) in files {
+        for t in tools.iter().filter(|t| t.combines && t.category == tab) {
+            match out.iter_mut().find(|(c, _)| c.id == t.id) {
+                Some((_, paths)) => paths.push(path.clone()),
+                None => out.push((t.clone(), vec![path.clone()])),
+            }
+        }
+    }
+    out.retain(|(t, paths)| paths.len() >= min_inputs(t));
+    out
+}
