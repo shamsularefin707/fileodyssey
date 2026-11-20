@@ -61,6 +61,12 @@ fn similarity_ratio() {
     let s = similarity(&a, &b);
     assert!(s < 0.99 && s > 0.97, "{s}");
     assert_eq!(similarity(&[], &[]), 1.0);
+    // Words added by the conversion (a title block) aren't loss.
+    let mut longer = vec!["Title".to_string()];
+    longer.extend(a.clone());
+    assert_eq!(similarity(&a, &longer), 1.0);
+    assert!(similarity(&longer, &a) < 1.0);
+    assert_eq!(normalise_words("• one — *** two"), vec!["one", "two"]);
 }
 
 #[test]
@@ -95,5 +101,14 @@ fn footnote_words_compare_at_the_end_and_markers_strip() {
     assert_eq!(
         fo_core::pandoc::ast::strip_note_markers("map.[1] and [12] but [x]"),
         "map.  and   but [x]"
+    );
+}
+
+#[test]
+fn line_block_lines_stay_separate_words() {
+    let s = stats(&ast("| The water was high.\n| We saw herons.\n"));
+    assert_eq!(
+        s.words,
+        vec!["The", "water", "was", "high", "We", "saw", "herons"]
     );
 }

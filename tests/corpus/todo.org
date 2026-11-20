@@ -1,0 +1,18 @@
+#+TITLE: Survey plan
+
+* Before the survey
+  Check the boats and pack the field books.
+** Equipment
+   - Measuring pole
+   - Waterproof notebook
+* During the survey
+  Record the level at every marker. See [[https://example.org/markers][the marker list]].
+
+  | Marker | Distance |
+  |--------+----------|
+  | A      | 0 m      |
+  | B      | 250 m    |
+
+* After the survey
+  Type up the notes the same evening, while they are fresh.
+  প্রতিটি মাপ একই দিনে লিখে রাখতে হবে।

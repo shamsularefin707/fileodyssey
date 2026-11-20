@@ -98,6 +98,13 @@ impl Walker {
                         .text
                         .push_str(c.get(1).and_then(Value::as_str).unwrap_or("")),
                     "RawInline" | "RawBlock" => {}
+                    // Lines of a line block are separate even with no Space between.
+                    "LineBlock" => {
+                        for line in c.as_array().into_iter().flatten() {
+                            self.walk(line);
+                            self.text.push(' ');
+                        }
+                    }
                     "Header" => {
                         self.s.headings += 1;
                         self.walk(c.get(2).unwrap_or(&Value::Null));
@@ -153,6 +160,13 @@ pub fn stats(doc: &Value) -> Stats {
         notes: String::new(),
         in_note: false,
     };
+    // The title is content too; formats keep it in metadata or as a title block.
+    if let Some(t) = doc.get("meta").and_then(|m| m.get("title")) {
+        w.walk(t);
+        w.text.push(' ');
+        // Count its words only, not its structure.
+        w.s = Stats::default();
+    }
     w.walk(doc.get("blocks").unwrap_or(doc));
     w.text.push(' ');
     w.text.push_str(&w.notes);
@@ -182,7 +196,8 @@ pub fn normalise_words(text: &str) -> Vec<String> {
             }
             w
         })
-        .filter(|w| !w.is_empty())
+        // Tokens with no letter or digit ("•", "—", "***") aren't words.
+        .filter(|w| w.chars().any(char::is_alphanumeric))
         .collect()
 }
 
@@ -206,18 +221,31 @@ fn is_edge_punct(c: char) -> bool {
     ) || c.is_whitespace()
 }
 
-/// Share of words kept in order (0–1), via a word-level diff.
-pub fn similarity(a: &[String], b: &[String]) -> f64 {
-    if a.is_empty() && b.is_empty() {
+/// Share of the source's words that survive, in order (0–1), from a
+/// word-level diff. Words the conversion adds (a title block, a date)
+/// aren't loss, so they don't lower it.
+pub fn similarity(before: &[String], after: &[String]) -> f64 {
+    if before.is_empty() {
         return 1.0;
     }
-    let a: Vec<&str> = a.iter().map(String::as_str).collect();
-    let b: Vec<&str> = b.iter().map(String::as_str).collect();
-    similar::TextDiff::configure()
-        .algorithm(similar::Algorithm::Myers)
-        .timeout(std::time::Duration::from_secs(10))
-        .diff_slices(&a, &b)
-        .ratio() as f64
+    let a: Vec<&str> = before.iter().map(String::as_str).collect();
+    let b: Vec<&str> = after.iter().map(String::as_str).collect();
+    let ops = similar::capture_diff_deadline(
+        similar::Algorithm::Myers,
+        &a,
+        0..a.len(),
+        &b,
+        0..b.len(),
+        Some(std::time::Instant::now() + std::time::Duration::from_secs(10)),
+    );
+    let kept: usize = ops
+        .iter()
+        .map(|op| match op {
+            similar::DiffOp::Equal { len, .. } => *len,
+            _ => 0,
+        })
+        .sum();
+    kept as f64 / a.len() as f64
 }
 
 /// Fidelity report. With `compare_structure` false (plain-text output, which

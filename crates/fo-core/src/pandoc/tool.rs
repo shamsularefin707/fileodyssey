@@ -47,7 +47,8 @@ impl DocConvert {
     fn ast(&self, ctx: &Ctx, from: &str, name: &str, bytes: Vec<u8>) -> Result<Value, ToolError> {
         let r = self.pandoc(
             ctx,
-            json!({"from": from, "to": "json", "input-files": [name]}),
+            // Standalone, so readers promote document titles (e.g. RST) into metadata.
+            json!({"from": from, "to": "json", "standalone": true, "input-files": [name]}),
             vec![(name.to_owned(), bytes)],
         )?;
         serde_json::from_slice(&r.stdout)
@@ -141,6 +142,20 @@ fn image_targets(v: &Value, out: &mut Vec<String>) {
             o.values().for_each(|x| image_targets(x, out));
         }
         _ => {}
+    }
+}
+
+/// Targets whose Pandoc reader (used only to check the result) is known to
+/// miss content Pandoc's writer did produce.
+fn weak_checker(target: &str) -> Option<&'static str> {
+    match target {
+        "rtf" => Some("RTF"),
+        "tex" => Some("LaTeX"),
+        "adoc" => Some("AsciiDoc"),
+        "odt" => Some("OpenDocument"),
+        "org" => Some("Org"),
+        "rst" => Some("reStructuredText"),
+        _ => None,
     }
 }
 
@@ -274,9 +289,12 @@ impl Tool for DocConvert {
             "html" => {
                 opts["standalone"] = json!(true);
                 opts["embed-resources"] = json!(true);
-                opts["metadata"] = json!({"pagetitle": stem});
+                if !title_of(&before_ast) {
+                    opts["metadata"] = json!({"pagetitle": stem});
+                }
             }
-            "rtf" | "tex" => opts["standalone"] = json!(true),
+            // Standalone keeps the title block (and RTF/LaTeX need it to be valid).
+            "rtf" | "tex" | "md" | "rst" | "org" | "adoc" => opts["standalone"] = json!(true),
             "epub" if !title_of(&before_ast) => opts["metadata"] = json!({"title": stem}),
             _ => {}
         }
@@ -320,6 +338,13 @@ impl Tool for DocConvert {
             ),
         };
         let mut rep = report(&before, &after, structure);
+        if rep.verdict() == fo_types::Verdict::Warn {
+            if let Some(f) = weak_checker(target) {
+                rep.warnings.push(format!(
+                    "Checked by reading the result back with Pandoc's {f} reader, which can miss titles, captions, tables or notes; the file itself may be complete"
+                ));
+            }
+        }
         let mut seen = std::collections::HashSet::new();
         for w in converted.warnings {
             if rep.warnings.len() < 10 && seen.insert(w.clone()) {
