@@ -212,6 +212,18 @@ fn ruled(rules: &[Rule], lines: &mut Vec<Line>) -> Vec<(BBox, Table)> {
                 _ => keep.push(l),
             }
         }
+        // Cells holding paragraphs of prose make a frame or a boxed layout,
+        // not a table: give its text back.
+        let filled: Vec<usize> = cell_lines
+            .values()
+            .map(Vec::len)
+            .filter(|n| *n > 0)
+            .collect();
+        if !filled.is_empty() && filled.iter().sum::<usize>() > 6 * filled.len() {
+            keep.extend(cell_lines.into_values().flatten());
+            *lines = keep;
+            continue;
+        }
         *lines = keep;
         let mut rows: Vec<Vec<Cell>> = vec![Vec::new(); nr];
         let mut starts: Vec<(usize, (usize, usize, usize, usize))> = ext.into_iter().collect();

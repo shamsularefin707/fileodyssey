@@ -393,3 +393,29 @@ fn table_split_across_pages_stays_two_tables() {
     assert_eq!(grid(t[1])[0][0].1, "May");
     assert_eq!(grid(t[1])[2][2].1, "Warm");
 }
+
+/// A frame drawn around the page with a rule under the title is page
+/// decoration: its "cells" hold paragraphs of prose, so it isn't a table.
+#[test]
+fn page_frame_with_a_rule_is_not_a_table() {
+    let mut g = Vec::new();
+    run(&mut g, "A report title", 50.0, 40.0, 16.0, true);
+    for i in 0..20 {
+        run(
+            &mut g,
+            "ordinary body text in a long paragraph",
+            50.0,
+            90.0 + 14.0 * i as f32,
+            10.0,
+            false,
+        );
+    }
+    let rules = vec![
+        h(30.0, 40.0, 560.0),
+        h(70.0, 40.0, 560.0),
+        h(780.0, 40.0, 560.0),
+        v(40.0, 30.0, 780.0),
+        v(560.0, 30.0, 780.0),
+    ];
+    assert!(tables(page(g, rules)).is_empty());
+}
