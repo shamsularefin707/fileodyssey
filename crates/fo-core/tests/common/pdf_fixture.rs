@@ -72,3 +72,39 @@ pub fn sample_pdf() -> Vec<u8> {
     pdf.stream(content, &c.finish());
     pdf.finish()
 }
+
+/// One page that is only a picture (like a scan): no text at all.
+pub fn scanned_pdf() -> Vec<u8> {
+    let mut pdf = Pdf::new();
+    let (cat, tree, page, content, img) = (
+        Ref::new(1),
+        Ref::new(2),
+        Ref::new(3),
+        Ref::new(4),
+        Ref::new(5),
+    );
+    pdf.catalog(cat).pages(tree);
+    pdf.pages(tree).kids([page]).count(1);
+    let mut p = pdf.page(page);
+    p.media_box(Rect::new(0.0, 0.0, 300.0, 400.0))
+        .parent(tree)
+        .contents(content);
+    p.resources().x_objects().pair(Name(b"Scan"), img);
+    p.finish();
+    let pixels: Vec<u8> = (0..60 * 80)
+        .flat_map(|i| [(i % 60 * 4) as u8, 200, (i / 60 * 3) as u8])
+        .collect();
+    let data = miniz_oxide::deflate::compress_to_vec_zlib(&pixels, 6);
+    let mut x = pdf.image_xobject(img, &data);
+    x.filter(Filter::FlateDecode);
+    x.width(60).height(80).bits_per_component(8);
+    x.color_space().device_rgb();
+    x.finish();
+    let mut c = Content::new();
+    c.save_state()
+        .transform([300.0, 0.0, 0.0, 400.0, 0.0, 0.0])
+        .x_object(Name(b"Scan"))
+        .restore_state();
+    pdf.stream(content, &c.finish());
+    pdf.finish()
+}

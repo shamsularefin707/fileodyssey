@@ -15,6 +15,19 @@ use std::sync::Arc;
 const MAX_RESOURCE: u64 = 50 * 1024 * 1024;
 const MAX_RESOURCES_TOTAL: u64 = 200 * 1024 * 1024;
 
+/// What `write_and_check` converts: Pandoc input files and what the source
+/// contains, measured beforehand.
+pub struct Source<'a> {
+    pub from: &'a str,
+    pub in_name: &'a str,
+    pub files: Vec<(String, Vec<u8>)>,
+    pub before: Stats,
+    pub has_title: bool,
+    pub stem: &'a str,
+    /// `before` counts headings/paragraphs/tables/notes (false for PDFs).
+    pub known_structure: bool,
+}
+
 pub struct DocConvert {
     engine: Arc<dyn PandocEngine>,
 }
@@ -44,7 +57,13 @@ impl DocConvert {
             })
     }
 
-    fn ast(&self, ctx: &Ctx, from: &str, name: &str, bytes: Vec<u8>) -> Result<Value, ToolError> {
+    pub fn ast(
+        &self,
+        ctx: &Ctx,
+        from: &str,
+        name: &str,
+        bytes: Vec<u8>,
+    ) -> Result<Value, ToolError> {
         let r = self.pandoc(
             ctx,
             // Standalone, so readers promote document titles (e.g. RST) into metadata.
@@ -53,6 +72,131 @@ impl DocConvert {
         )?;
         serde_json::from_slice(&r.stdout)
             .map_err(|_| ToolError::Failed("Pandoc returned an unreadable document".into()))
+    }
+
+    /// Writes `src` as `target` with Pandoc, reads the result back and
+    /// reports what survived; places one file or a folder with media.
+    pub fn write_and_check(
+        &self,
+        ctx: &Ctx,
+        src: Source<'_>,
+        target: &str,
+        flavour: &str,
+        to: &str,
+    ) -> Result<ToolOutput, ToolError> {
+        let Source {
+            from,
+            in_name,
+            files,
+            before,
+            has_title,
+            stem,
+            known_structure,
+        } = src;
+        let out_name = format!("out.{target}");
+        let mut opts =
+            json!({"from": from, "to": to, "input-files": [in_name], "output-file": out_name});
+        match target {
+            "html" => {
+                opts["standalone"] = json!(true);
+                opts["embed-resources"] = json!(true);
+                if !has_title {
+                    opts["metadata"] = json!({"pagetitle": stem});
+                }
+            }
+            // Standalone keeps the title block (and RTF/LaTeX need it to be valid).
+            "rtf" | "tex" | "md" | "rst" | "org" | "adoc" => opts["standalone"] = json!(true),
+            "epub" if !has_title => opts["metadata"] = json!({"title": stem}),
+            _ => {}
+        }
+        if matches!(target, "md" | "rst" | "org" | "adoc" | "tex") {
+            opts["extract-media"] = json!("media");
+        }
+        let converted = self.pandoc(ctx, opts, files)?;
+        let out_bytes = converted
+            .file(&out_name)
+            .ok_or_else(|| ToolError::Failed("Pandoc didn't produce a file".into()))?
+            .to_vec();
+        let media: Vec<(String, Vec<u8>)> = converted
+            .files
+            .iter()
+            .filter(|(n, _)| n.starts_with("media/"))
+            .cloned()
+            .collect();
+        (ctx.progress)(0.7);
+
+        // 3. What survived.
+        let (after, structure) = match reader_for_target(target) {
+            Some(_) => {
+                let back = if target == "md" {
+                    flavour
+                } else {
+                    reader_for_target(target).unwrap_or("markdown")
+                };
+                (
+                    stats(&self.ast(ctx, back, &out_name, out_bytes.clone())?),
+                    true,
+                )
+            }
+            None => (
+                Stats {
+                    words: normalise_words(&strip_note_markers(&String::from_utf8_lossy(
+                        &out_bytes,
+                    ))),
+                    ..Stats::default()
+                },
+                false,
+            ),
+        };
+        let after = if known_structure {
+            after
+        } else {
+            // The source's headings, paragraphs, tables and notes aren't known
+            // independently (a PDF has none as such): compare what is.
+            Stats {
+                words: after.words,
+                images: after.images,
+                links: after.links,
+                ..Stats::default()
+            }
+        };
+        let mut rep = report(&before, &after, structure);
+        if rep.verdict() == fo_types::Verdict::Warn {
+            if let Some(f) = weak_checker(target) {
+                rep.warnings.push(format!(
+                    "Checked by reading the result back with Pandoc's {f} reader, which can miss titles, captions, tables or notes; the file itself may be complete"
+                ));
+            }
+        }
+        let mut seen = std::collections::HashSet::new();
+        for w in converted.warnings {
+            if rep.warnings.len() < 10 && seen.insert(w.clone()) {
+                rep.warnings.push(w);
+            }
+        }
+
+        // 4. One file, or a folder when images came out alongside it.
+        let file_name = format!("{stem}.{target}");
+        let files: Vec<(PathBuf, String)> = if media.is_empty() {
+            let p = ctx.work_dir.join(&out_name);
+            std::fs::write(&p, &out_bytes)?;
+            vec![(p, target.to_owned())]
+        } else {
+            let dir = ctx.work_dir.join("bundle");
+            std::fs::create_dir_all(dir.join("media"))?;
+            std::fs::write(dir.join(&file_name), &out_bytes)?;
+            for (n, b) in media {
+                let Some(rel) = resolve("", &n) else { continue };
+                let p = dir.join(rel);
+                if let Some(parent) = p.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                std::fs::write(p, b)?;
+            }
+            vec![(dir, String::new())]
+        };
+        (ctx.progress)(1.0);
+        Ok(ToolOutput { files, report: rep })
     }
 }
 
@@ -282,97 +426,20 @@ impl Tool for DocConvert {
                 }
             }
         }
-        let out_name = format!("out.{target}");
-        let mut opts =
-            json!({"from": from, "to": to, "input-files": [in_name], "output-file": out_name});
-        match target {
-            "html" => {
-                opts["standalone"] = json!(true);
-                opts["embed-resources"] = json!(true);
-                if !title_of(&before_ast) {
-                    opts["metadata"] = json!({"pagetitle": stem});
-                }
-            }
-            // Standalone keeps the title block (and RTF/LaTeX need it to be valid).
-            "rtf" | "tex" | "md" | "rst" | "org" | "adoc" => opts["standalone"] = json!(true),
-            "epub" if !title_of(&before_ast) => opts["metadata"] = json!({"title": stem}),
-            _ => {}
-        }
-        if matches!(target, "md" | "rst" | "org" | "adoc" | "tex") {
-            opts["extract-media"] = json!("media");
-        }
-        let converted = self.pandoc(ctx, opts, files)?;
-        let out_bytes = converted
-            .file(&out_name)
-            .ok_or_else(|| ToolError::Failed("Pandoc didn't produce a file".into()))?
-            .to_vec();
-        let media: Vec<(String, Vec<u8>)> = converted
-            .files
-            .iter()
-            .filter(|(n, _)| n.starts_with("media/"))
-            .cloned()
-            .collect();
-        (ctx.progress)(0.7);
-
-        // 3. What survived.
-        let (after, structure) = match reader_for_target(target) {
-            Some(_) => {
-                let back = if target == "md" {
-                    flavour
-                } else {
-                    reader_for_target(target).unwrap_or("markdown")
-                };
-                (
-                    stats(&self.ast(ctx, back, &out_name, out_bytes.clone())?),
-                    true,
-                )
-            }
-            None => (
-                Stats {
-                    words: normalise_words(&strip_note_markers(&String::from_utf8_lossy(
-                        &out_bytes,
-                    ))),
-                    ..Stats::default()
-                },
-                false,
-            ),
-        };
-        let mut rep = report(&before, &after, structure);
-        if rep.verdict() == fo_types::Verdict::Warn {
-            if let Some(f) = weak_checker(target) {
-                rep.warnings.push(format!(
-                    "Checked by reading the result back with Pandoc's {f} reader, which can miss titles, captions, tables or notes; the file itself may be complete"
-                ));
-            }
-        }
-        let mut seen = std::collections::HashSet::new();
-        for w in converted.warnings {
-            if rep.warnings.len() < 10 && seen.insert(w.clone()) {
-                rep.warnings.push(w);
-            }
-        }
-
-        // 4. One file, or a folder when images came out alongside it.
-        let file_name = format!("{stem}.{target}");
-        let files: Vec<(PathBuf, String)> = if media.is_empty() {
-            let p = ctx.work_dir.join(&out_name);
-            std::fs::write(&p, &out_bytes)?;
-            vec![(p, target.to_owned())]
-        } else {
-            let dir = ctx.work_dir.join("bundle");
-            std::fs::create_dir_all(dir.join("media"))?;
-            std::fs::write(dir.join(&file_name), &out_bytes)?;
-            for (n, b) in media {
-                let Some(rel) = resolve("", &n) else { continue };
-                let p = dir.join(rel);
-                if let Some(parent) = p.parent() {
-                    std::fs::create_dir_all(parent)?;
-                }
-                std::fs::write(p, b)?;
-            }
-            vec![(dir, String::new())]
-        };
-        (ctx.progress)(1.0);
-        Ok(ToolOutput { files, report: rep })
+        self.write_and_check(
+            ctx,
+            Source {
+                from,
+                in_name: &in_name,
+                files,
+                before,
+                has_title: title_of(&before_ast),
+                stem: &stem,
+                known_structure: true,
+            },
+            target,
+            flavour,
+            to,
+        )
     }
 }
