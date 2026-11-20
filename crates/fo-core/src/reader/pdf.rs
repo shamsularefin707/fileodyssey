@@ -4,11 +4,13 @@
 //! the library handle, so one worker thread owns both and serves requests
 //! over a channel. `PdfEngine` is a cheap, cloneable handle to that thread.
 
+use crate::pdfconv::{Glyph, PageContent, PageImage, PageLink};
 use fo_types::{PageSize, PdfInfo, Rect, SearchHit, TextSpan};
 use pdfium_render::prelude::*;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Sender};
+use std::sync::{Mutex, OnceLock};
 
 /// Widest page bitmap we render, whatever the UI asks for.
 pub const MAX_RENDER_WIDTH: u32 = 4096;
@@ -22,6 +24,7 @@ enum Req {
     Render(u64, u32, u32, Reply<Vec<u8>>),
     Spans(u64, u32, Reply<Vec<TextSpan>>),
     Search(u64, String, Reply<Vec<SearchHit>>),
+    Extract(PathBuf, Reply<Vec<PageContent>>),
     Close(u64),
 }
 
@@ -121,6 +124,10 @@ impl PdfEngine {
                         Req::Close(id) => {
                             docs.remove(&id);
                         }
+                        Req::Extract(path, reply) => {
+                            let r = open(&pdfium, &path).and_then(|(doc, _)| extract(&doc));
+                            let _ = reply.send(r);
+                        }
                     }));
                 }
             })
@@ -160,6 +167,11 @@ impl PdfEngine {
             return Ok(vec![]);
         }
         self.ask(|r| Req::Search(doc, query.to_owned(), r))
+    }
+
+    /// Characters, images and links of every page, for reconstruction.
+    pub fn extract(&self, path: &Path) -> Result<Vec<PageContent>, String> {
+        self.ask(|r| Req::Extract(path.to_path_buf(), r))
     }
 
     pub fn close(&self, doc: u64) {
@@ -285,4 +297,157 @@ fn search(doc: &PdfDocument, query: &str) -> Result<Vec<SearchHit>, String> {
         }
     }
     Ok(hits)
+}
+
+static LIB_DIRS: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+static ENGINE: OnceLock<Result<PdfEngine, String>> = OnceLock::new();
+
+/// Adds a folder to search for PDFium (call before the first PDF is opened).
+pub fn add_lib_dir(dir: PathBuf) {
+    LIB_DIRS.lock().expect("lib dirs").insert(0, dir);
+}
+
+/// The process-wide PDF engine, started on first use.
+pub fn engine() -> Result<&'static PdfEngine, String> {
+    ENGINE
+        .get_or_init(|| {
+            let extra = LIB_DIRS.lock().expect("lib dirs").clone();
+            PdfEngine::start(&find_pdfium_dirs(&extra))
+        })
+        .as_ref()
+        .map_err(Clone::clone)
+}
+
+/// Largest edge of an extracted image; bigger ones are scaled down.
+const MAX_IMAGE_EDGE: u32 = 4000;
+
+fn rect_tl(r: PdfRect, ph: f32) -> (f32, f32, f32, f32) {
+    (
+        r.left().value,
+        ph - r.top().value,
+        r.right().value,
+        ph - r.bottom().value,
+    )
+}
+
+fn weight_is_bold(w: Option<PdfFontWeight>) -> bool {
+    matches!(
+        w,
+        Some(
+            PdfFontWeight::Weight600
+                | PdfFontWeight::Weight700Bold
+                | PdfFontWeight::Weight800
+                | PdfFontWeight::Weight900
+        )
+    ) || matches!(w, Some(PdfFontWeight::Custom(n)) if n >= 600)
+}
+
+fn push_image(obj: &PdfPageObject, ph: f32, out: &mut Vec<PageImage>) {
+    if let Some(form) = obj.as_x_object_form_object() {
+        for i in 0..form.len() {
+            if let Ok(child) = form.get(i) {
+                push_image(&child, ph, out);
+            }
+        }
+        return;
+    }
+    let Some(img) = obj.as_image_object() else {
+        return;
+    };
+    let Ok(bounds) = obj.bounds() else { return };
+    let (x0, y0, x1, y1) = rect_tl(bounds.to_rect(), ph);
+    if (x1 - x0) < 4.0 || (y1 - y0) < 4.0 {
+        return;
+    }
+    let Ok(mut bitmap) = img.get_raw_image() else {
+        return;
+    };
+    if bitmap.width().max(bitmap.height()) > MAX_IMAGE_EDGE {
+        bitmap = bitmap.resize(
+            MAX_IMAGE_EDGE,
+            MAX_IMAGE_EDGE,
+            image::imageops::FilterType::Triangle,
+        );
+    }
+    let mut png = std::io::Cursor::new(Vec::new());
+    if image::DynamicImage::ImageRgba8(bitmap.to_rgba8())
+        .write_to(&mut png, image::ImageFormat::Png)
+        .is_ok()
+    {
+        out.push(PageImage {
+            x0,
+            y0,
+            x1,
+            y1,
+            png: png.into_inner(),
+        });
+    }
+}
+
+fn extract(doc: &PdfDocument) -> Result<Vec<PageContent>, String> {
+    let mut pages = Vec::new();
+    for page in doc.pages().iter() {
+        let (pw, ph) = (page.width().value, page.height().value);
+        let mut pc = PageContent {
+            width: pw,
+            height: ph,
+            ..PageContent::default()
+        };
+        if let Ok(text) = page.text() {
+            for ch in text.chars().iter() {
+                let Some(t) = ch.unicode_string() else {
+                    continue;
+                };
+                if t.is_empty() {
+                    continue;
+                }
+                let Ok(b) = ch.loose_bounds().or_else(|_| ch.tight_bounds()) else {
+                    continue;
+                };
+                let (x0, y0, x1, y1) = rect_tl(b, ph);
+                let name = ch.font_name().to_ascii_lowercase();
+                pc.glyphs.push(Glyph {
+                    text: t,
+                    x0,
+                    y0,
+                    x1,
+                    y1,
+                    size: ch.scaled_font_size().value,
+                    bold: weight_is_bold(ch.font_weight())
+                        || name.contains("bold")
+                        || name.contains("black")
+                        || name.contains("heavy"),
+                    italic: ch.font_is_italic()
+                        || name.contains("italic")
+                        || name.contains("oblique"),
+                    mono: ch.font_is_fixed_pitch()
+                        || name.contains("mono")
+                        || name.contains("courier"),
+                    generated: ch.is_generated().unwrap_or(false),
+                    hyphen: ch.is_hyphen().unwrap_or(false),
+                });
+            }
+        }
+        for obj in page.objects().iter() {
+            push_image(&obj, ph, &mut pc.images);
+        }
+        for link in page.links().iter() {
+            let Some(PdfAction::Uri(a)) = link.action() else {
+                continue;
+            };
+            let (Ok(uri), Ok(r)) = (a.uri(), link.rect()) else {
+                continue;
+            };
+            let (x0, y0, x1, y1) = rect_tl(r, ph);
+            pc.links.push(PageLink {
+                x0,
+                y0,
+                x1,
+                y1,
+                uri,
+            });
+        }
+        pages.push(pc);
+    }
+    Ok(pages)
 }
