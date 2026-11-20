@@ -1,0 +1,14 @@
+{
+  "name": "fileodyssey-pandoc-worker",
+  "private": true,
+  "type": "module",
+  "description": "Runs the official pandoc.wasm in a Web Worker for FileOdyssey. Built into ../assets/pandoc/pandoc-worker.js by build.sh.",
+  "scripts": {
+    "build": "esbuild worker.js --bundle --format=iife --target=es2020 --legal-comments=inline --outfile=../assets/pandoc/pandoc-worker.js",
+    "test": "node test.mjs"
+  },
+  "devDependencies": {
+    "@bjorn3/browser_wasi_shim": "0.4.2",
+    "esbuild": "0.28.2"
+  }
+}

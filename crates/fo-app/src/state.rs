@@ -8,6 +8,7 @@ pub struct AppState {
     pub runner: Runner,
     pub placed: Placed,
     pub reader: Arc<fo_core::reader::session::Sessions>,
+    pub pandoc: Arc<crate::pandoc::WebviewPandoc>,
 }
 
 impl AppState {
@@ -21,6 +22,11 @@ impl AppState {
         }
         registry.register(fo_core::pdfopt::tool());
         registry.register(fo_core::office::tool());
+        let pandoc = Arc::new(crate::pandoc::WebviewPandoc::default());
+        registry.register(Arc::new(fo_core::pandoc::tool::DocConvert::new(
+            pandoc.clone(),
+        )));
+        registry.register(Arc::new(fo_core::data::DataConvert));
         let registry = Arc::new(registry);
         let workers = std::thread::available_parallelism()
             .map(|n| n.get().saturating_sub(1))
@@ -32,6 +38,7 @@ impl AppState {
             runner,
             placed: Placed::default(),
             reader: Arc::new(fo_core::reader::session::Sessions::new(vec![])),
+            pandoc,
         }
     }
 }
@@ -68,6 +75,8 @@ mod tests {
             "arc.create",
             "pdf.compress",
             "office.compress",
+            "doc.convert",
+            "data.convert",
         ] {
             assert!(s.registry.get(id).is_some(), "{id} missing");
         }

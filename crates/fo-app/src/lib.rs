@@ -1,4 +1,5 @@
 mod commands;
+mod pandoc;
 mod reader;
 mod state;
 
@@ -12,6 +13,9 @@ pub fn run() {
         .manage(state::AppState::new())
         .register_asynchronous_uri_scheme_protocol("reader", reader::protocol)
         .setup(|app| {
+            app.state::<state::AppState>()
+                .pandoc
+                .attach(app.handle().clone());
             // Bundled PDFium lives in the app's resources on desktop.
             if let Ok(dir) = app.path().resource_dir() {
                 app.state::<state::AppState>()
@@ -45,6 +49,8 @@ pub fn run() {
             reader::reader_text,
             reader::reader_search,
             reader::reader_close,
+            pandoc::pandoc_take,
+            pandoc::pandoc_done,
         ])
         .run(tauri::generate_context!())
         .expect("error while running FileOdyssey");
