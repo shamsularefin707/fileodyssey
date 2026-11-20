@@ -115,7 +115,20 @@ fn Row(entry: Entry) -> impl IntoView {
             <div class="file-action">
                 <Show
                     when=move || !options().is_empty()
-                    fallback=|| view! { <span class="muted">{NO_TOOLS}</span> }
+                    fallback={
+                        let path = path.clone();
+                        let kind = entry.file.kind;
+                        move || {
+                            let path = path.clone();
+                            if ctx.tab.get() != fo_types::Category::Read {
+                                view! { <span class="muted">{NO_TOOLS}</span> }.into_any()
+                            } else if fo_ui::reading::readable(&kind) {
+                                view! { <button class="read-btn" on:click=move |_| ctx.open_reader(path.clone())>{READ_ACTION}</button> }.into_any()
+                            } else {
+                                view! { <span class="muted">{CANT_READ_YET}</span> }.into_any()
+                            }
+                        }
+                    }
                 >
                     <label class="target">
                         <span>{TO}</span>
@@ -335,7 +348,7 @@ pub fn FileList() -> impl IntoView {
                     children=|e| view! { <Row entry=e/> }
                 />
             </ul>
-            <div class="run-bar">
+            <div class="run-bar" class:hidden=move || ctx.tab.get() == fo_types::Category::Read>
                 <p class="save-to">
                     {SAVE_TO} " " <span class="dir">{move || ctx.out_dir.get()}</span> " "
                     <Show when=move || ctx.platform.get() == fo_types::Platform::Desktop>

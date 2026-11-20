@@ -101,3 +101,47 @@ pub fn target_label(target: &str) -> String {
         other => other.to_uppercase(),
     }
 }
+
+// Reader
+pub const READ_ACTION: &str = "Read";
+pub const CANT_READ_YET: &str = "Can't be read yet";
+pub const OPENING: &str = "Opening…";
+pub const BACK_TO_FILES: &str = "Files";
+pub const BACK_TO_FILES_LABEL: &str = "Close and go back to your files";
+pub const ZOOM_IN: &str = "Zoom in";
+pub const ZOOM_OUT: &str = "Zoom out";
+pub const FIT_WIDTH: &str = "Fit width";
+pub const FIT: &str = "Fit";
+pub const ACTUAL_SIZE: &str = "Actual size";
+pub const PAGES: &str = "Pages";
+pub const PAGE: &str = "Page";
+pub const FIND: &str = "Find in document";
+pub const FIND_NEXT: &str = "Next match";
+pub const FIND_PREV: &str = "Previous match";
+pub const NO_MATCHES: &str = "No matches";
+pub const CONTENTS: &str = "Contents";
+pub const SMALLER_TEXT: &str = "Smaller text";
+pub const LARGER_TEXT: &str = "Larger text";
+pub const PREVIOUS_PART: &str = "Previous";
+pub const COPY_ADDRESS: &str = "Copy address";
+pub const COPIED: &str = "Copied";
+pub const DISMISS: &str = "Dismiss";
+pub const DETAILS: &str = "Details";
+pub const SIZE: &str = "Size";
+pub const NO_CAMERA_DETAILS: &str = "No camera details in this image.";
+
+pub fn match_count(i: usize, n: usize) -> String {
+    format!("{} of {n}", i + 1)
+}
+
+pub fn of_pages(n: usize) -> String {
+    format!("of {n}")
+}
+
+pub fn link_note(url: &str) -> String {
+    format!("This link goes to {url}. The reader works offline, so it isn't opened.")
+}
+
+pub fn zoom_label(z: f64) -> String {
+    format!("{}%", (z * 100.0).round() as i64)
+}
