@@ -98,6 +98,12 @@ pub fn target_label(target: &str) -> String {
         "jpg" => "JPEG".to_owned(),
         "jxl" => "JPEG XL".to_owned(),
         "tiff" => "TIFF".to_owned(),
+        "md" => "Markdown".to_owned(),
+        "tex" => "LaTeX".to_owned(),
+        "rst" => "reStructuredText".to_owned(),
+        "org" => "Org".to_owned(),
+        "adoc" => "AsciiDoc".to_owned(),
+        "xlsx" => "Excel".to_owned(),
         other => other.to_uppercase(),
     }
 }

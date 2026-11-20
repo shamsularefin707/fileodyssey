@@ -1,0 +1,27 @@
+= Boat care manual
+
+Keep the boats clean and dry between surveys.
+
+== Cleaning
+
+Rinse the hull with fresh water after every trip.
+Use the soft brush, never the wire one.
+
+== Storage
+
+|===
+| Boat | Shed | Cover
+
+| Heron
+| North
+| Green
+
+| Kingfisher
+| South
+| Blue
+|===
+
+See the https://example.org/boats[boat register] for repairs.
+
+* Check the ropes every month.
+* Replace worn oars before the season starts.

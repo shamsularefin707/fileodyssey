@@ -8,7 +8,8 @@
 use super::epub::{mime_for, Book, MAX_ENTRY_BYTES};
 use super::image_view::{display_bytes, image_info};
 use super::pdf::PdfEngine;
-use super::text::{read_text_doc, resolve};
+use super::text::{read_text_doc, resolve, sanitize};
+use crate::pandoc::PandocEngine;
 use fo_types::{FileKind, ReaderBody, ReaderView, SearchHit, TextSpan};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -29,6 +30,10 @@ enum Doc {
         path: PathBuf,
         kind: FileKind,
     },
+    /// Word/ODT/RTF converted by Pandoc; images kept in memory.
+    Converted {
+        media: HashMap<String, Vec<u8>>,
+    },
 }
 
 pub type Served = Result<(Vec<u8>, &'static str), (u16, String)>;
@@ -38,6 +43,7 @@ pub struct Sessions {
     engine: OnceLock<Result<PdfEngine, String>>,
     docs: Mutex<HashMap<u64, Arc<Doc>>>,
     next: AtomicU64,
+    pandoc: Mutex<Option<Arc<dyn PandocEngine>>>,
 }
 
 fn not_found() -> (u16, String) {
@@ -51,7 +57,45 @@ impl Sessions {
             engine: OnceLock::new(),
             docs: Mutex::new(HashMap::new()),
             next: AtomicU64::new(1),
+            pandoc: Mutex::new(None),
         }
+    }
+
+    /// Lets Word, OpenDocument and RTF files open (through Pandoc).
+    pub fn set_pandoc(&self, engine: Arc<dyn PandocEngine>) {
+        *self.pandoc.lock().expect("pandoc") = Some(engine);
+    }
+
+    fn converted(&self, path: &Path, kind: FileKind) -> Result<(Doc, ReaderBody), String> {
+        let engine = self.pandoc.lock().expect("pandoc").clone().ok_or_else(|| {
+            "Reading Word, OpenDocument and RTF files arrives together with document conversion in a later update.".to_string()
+        })?;
+        let from = crate::pandoc::formats::reader_for(kind).unwrap_or("docx");
+        let bytes = std::fs::read(path).map_err(|e| format!("Couldn't read the file: {e}"))?;
+        let name = format!("input.{from}");
+        let req = crate::pandoc::PandocRequest {
+            options: serde_json::json!({"from": from, "to": "html5", "input-files": [name], "extract-media": "media"}),
+            files: vec![(name, bytes)],
+        };
+        let r = engine
+            .run(req, &crate::tool::CancelToken::new())
+            .map_err(|e| {
+                format!(
+                    "This document couldn't be opened: {}",
+                    e.lines().next().unwrap_or("")
+                )
+            })?;
+        let html = sanitize(
+            &String::from_utf8_lossy(&r.stdout),
+            "",
+            &Arc::new(HashMap::new()),
+        );
+        let media = r
+            .files
+            .into_iter()
+            .filter(|(n, _)| n.starts_with("media/"))
+            .collect();
+        Ok((Doc::Converted { media }, ReaderBody::Page(html)))
     }
 
     /// Adds a folder to look in for PDFium (before the first PDF opens).
@@ -89,7 +133,11 @@ impl Sessions {
                 let info = book.info();
                 (Doc::Book(Mutex::new(book)), ReaderBody::Book(info))
             }
-            k @ (FileKind::Markdown | FileKind::Html | FileKind::Text | FileKind::Csv | FileKind::Json) => {
+            k @ (FileKind::Markdown
+            | FileKind::Html
+            | FileKind::Text
+            | FileKind::Csv
+            | FileKind::Json) => {
                 let html = read_text_doc(path, k)?;
                 let dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
                 (Doc::Page { dir }, ReaderBody::Page(html))
@@ -104,9 +152,13 @@ impl Sessions {
                     ReaderBody::Image(info),
                 )
             }
-            FileKind::Docx | FileKind::Odt | FileKind::Rtf => {
-                return Err("Reading Word, OpenDocument and RTF files arrives together with document conversion in a later update.".into())
-            }
+            k @ (FileKind::Docx
+            | FileKind::Odt
+            | FileKind::Rtf
+            | FileKind::Latex
+            | FileKind::Rst
+            | FileKind::Org
+            | FileKind::AsciiDoc) => self.converted(path, k)?,
             _ => return Err("FileOdyssey can't read this kind of file.".into()),
         };
         let id = self.next.fetch_add(1, Ordering::Relaxed);
@@ -207,6 +259,10 @@ impl Sessions {
                 .expect("book")
                 .resource(path)
                 .map_err(|_| not_found()),
+            Doc::Converted { media } => media
+                .get(path)
+                .map(|b| (b.clone(), mime_for(path)))
+                .ok_or_else(not_found),
             Doc::Page { dir } => {
                 let file = dir.join(path);
                 // Symlinks must not lead outside the document's folder.

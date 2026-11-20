@@ -51,6 +51,12 @@ impl From<std::io::Error> for ToolError {
 pub trait Tool: Send + Sync {
     fn info(&self) -> ToolInfo;
     fn accepts(&self, kind: &FileKind) -> bool;
+
+    /// `info()` as shown for one kind of file (e.g. without its own format
+    /// as a target). Defaults to `info()`.
+    fn info_for(&self, _kind: &FileKind) -> ToolInfo {
+        self.info()
+    }
     fn run(&self, input: &Path, ctx: &Ctx) -> Result<ToolOutput, ToolError>;
 
     /// A combining tool turns all of a job's inputs into one output

@@ -4,3 +4,5 @@ dist/
 node_modules/
 crates/fo-app/gen/
 /pdfium/
+/crates/fo-ui/assets/pandoc/pandoc.wasm
+/pandoc/

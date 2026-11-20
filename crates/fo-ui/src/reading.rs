@@ -125,7 +125,14 @@ pub fn readable(kind: &FileKind) -> bool {
         | FileKind::Html
         | FileKind::Text
         | FileKind::Csv
-        | FileKind::Json => true,
+        | FileKind::Json
+        | FileKind::Docx
+        | FileKind::Odt
+        | FileKind::Rtf
+        | FileKind::Latex
+        | FileKind::Rst
+        | FileKind::Org
+        | FileKind::AsciiDoc => true,
         FileKind::Image(f) => !matches!(f, ImageFormat::Heic | ImageFormat::Avif),
         _ => false,
     }

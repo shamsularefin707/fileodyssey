@@ -152,6 +152,10 @@ fn chapter_html(i: usize) -> String {
     }
 }
 
+fn docx_html() -> String {
+    "<h1 id=\"fo-quarterly-river-report\">ত্রৈমাসিক প্রতিবেদন</h1><p>এই প্রতিবেদনে বছরের প্রথম তিন মাসের নদী জরিপের ফলাফল দেওয়া হয়েছে। পানির স্তর প্রতি মাসে বেড়েছে।</p><h2>Readings</h2><table><thead><tr><th>Month</th><th>Level</th><th>Note</th></tr></thead><tbody><tr><td>March</td><td>2.1</td><td>Clear</td></tr><tr><td>April</td><td>2.9</td><td>After rain</td></tr></tbody></table><p>Full data is on the <a href=\"fo-ext:https://example.org/data\">survey website</a>.</p>".into()
+}
+
 fn md_html() -> String {
     "<h1 id=\"fo-meeting-notes\">Meeting notes</h1><p><strong>Present:</strong> Rumana, Tanvir, Sadia</p><h2>Decisions</h2><ul><li>Move the stock count to the first week of March.</li><li>Keep the evening hours at the river valley store.</li></ul><h2>Numbers</h2><table><thead><tr><th>Store</th><th>Visitors</th></tr></thead><tbody><tr><td>Valley</td><td>4,210</td></tr><tr><td>Bridge</td><td>2,980</td></tr></tbody></table><pre><code>total = valley + bridge</code></pre><p>Agenda for next time: <a href=\"fo-ext:https://example.org/agenda\">shared agenda</a>.</p>".into()
 }
@@ -213,9 +217,7 @@ pub fn invoke(cmd: &str, args: &JsValue) -> Option<Result<JsValue, String>> {
                         .collect(),
                     }),
                 ),
-                "docx" => {
-                    return Some(Err("Reading Word, OpenDocument and RTF files arrives together with document conversion in a later update.".into()))
-                }
+                "docx" | "odt" | "rtf" => (5, ReaderBody::Page(docx_html())),
                 _ => return Some(Err("FileOdyssey can't read this kind of file.".into())),
             };
             Ok(to_js(&ReaderView { doc, name, body }))

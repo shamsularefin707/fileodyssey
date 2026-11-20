@@ -1,0 +1,3022 @@
+{
+  "article.html -> adoc": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        18,
+        18
+      ],
+      "Table cells": [
+        12,
+        12
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        111,
+        111
+      ]
+    },
+    "similarity": 1.0
+  },
+  "article.html -> docx": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        18,
+        18
+      ],
+      "Table cells": [
+        12,
+        12
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        111,
+        111
+      ]
+    },
+    "similarity": 1.0
+  },
+  "article.html -> epub": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        18,
+        20
+      ],
+      "Table cells": [
+        12,
+        12
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        111,
+        111
+      ]
+    },
+    "similarity": 1.0
+  },
+  "article.html -> md": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        18,
+        18
+      ],
+      "Table cells": [
+        12,
+        12
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        111,
+        111
+      ]
+    },
+    "similarity": 1.0
+  },
+  "article.html -> odt": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        18,
+        19
+      ],
+      "Table cells": [
+        12,
+        12
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        111,
+        111
+      ]
+    },
+    "similarity": 1.0
+  },
+  "article.html -> org": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        18,
+        18
+      ],
+      "Table cells": [
+        12,
+        12
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        111,
+        111
+      ]
+    },
+    "similarity": 1.0
+  },
+  "article.html -> rst": {
+    "exact": false,
+    "metrics": {
+      "Headings": [
+        3,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        18,
+        19
+      ],
+      "Table cells": [
+        12,
+        12
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        111,
+        107
+      ]
+    },
+    "similarity": 0.964
+  },
+  "article.html -> rtf": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        18,
+        19
+      ],
+      "Table cells": [
+        12,
+        12
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        111,
+        111
+      ]
+    },
+    "similarity": 1.0
+  },
+  "article.html -> tex": {
+    "exact": false,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        18,
+        17
+      ],
+      "Table cells": [
+        12,
+        12
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        111,
+        110
+      ]
+    },
+    "similarity": 0.991
+  },
+  "article.html -> txt": {
+    "exact": false,
+    "metrics": {
+      "Words": [
+        111,
+        107
+      ]
+    },
+    "similarity": 0.964
+  },
+  "book.epub -> adoc": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        20
+      ],
+      "Table cells": [
+        12,
+        12
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        111,
+        113
+      ]
+    },
+    "similarity": 1.0
+  },
+  "book.epub -> docx": {
+    "exact": false,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        19
+      ],
+      "Table cells": [
+        12,
+        12
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        111,
+        111
+      ]
+    },
+    "similarity": 1.0
+  },
+  "book.epub -> html": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        4
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        21
+      ],
+      "Table cells": [
+        12,
+        12
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        111,
+        116
+      ]
+    },
+    "similarity": 1.0
+  },
+  "book.epub -> md": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        20
+      ],
+      "Table cells": [
+        12,
+        12
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        111,
+        111
+      ]
+    },
+    "similarity": 1.0
+  },
+  "book.epub -> odt": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        22
+      ],
+      "Table cells": [
+        12,
+        12
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        111,
+        112
+      ]
+    },
+    "similarity": 1.0
+  },
+  "book.epub -> org": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        23
+      ],
+      "Table cells": [
+        12,
+        12
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        111,
+        111
+      ]
+    },
+    "similarity": 1.0
+  },
+  "book.epub -> rst": {
+    "exact": false,
+    "metrics": {
+      "Headings": [
+        3,
+        0
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        21
+      ],
+      "Table cells": [
+        12,
+        12
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        111,
+        111
+      ]
+    },
+    "similarity": 1.0
+  },
+  "book.epub -> rtf": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        20
+      ],
+      "Table cells": [
+        12,
+        12
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        111,
+        112
+      ]
+    },
+    "similarity": 1.0
+  },
+  "book.epub -> tex": {
+    "exact": false,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        19
+      ],
+      "Table cells": [
+        12,
+        12
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        111,
+        110
+      ]
+    },
+    "similarity": 0.991
+  },
+  "book.epub -> txt": {
+    "exact": false,
+    "metrics": {
+      "Words": [
+        111,
+        107
+      ]
+    },
+    "similarity": 0.964
+  },
+  "fieldbook.txt -> adoc": {
+    "exact": true,
+    "metrics": {
+      "Paragraphs": [
+        4,
+        4
+      ],
+      "Words": [
+        36,
+        36
+      ]
+    },
+    "similarity": 1.0
+  },
+  "fieldbook.txt -> docx": {
+    "exact": true,
+    "metrics": {
+      "Paragraphs": [
+        4,
+        4
+      ],
+      "Words": [
+        36,
+        36
+      ]
+    },
+    "similarity": 1.0
+  },
+  "fieldbook.txt -> epub": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        0,
+        1
+      ],
+      "Paragraphs": [
+        4,
+        6
+      ],
+      "Words": [
+        36,
+        38
+      ]
+    },
+    "similarity": 1.0
+  },
+  "fieldbook.txt -> html": {
+    "exact": true,
+    "metrics": {
+      "Paragraphs": [
+        4,
+        4
+      ],
+      "Words": [
+        36,
+        37
+      ]
+    },
+    "similarity": 1.0
+  },
+  "fieldbook.txt -> md": {
+    "exact": true,
+    "metrics": {
+      "Paragraphs": [
+        4,
+        4
+      ],
+      "Words": [
+        36,
+        36
+      ]
+    },
+    "similarity": 1.0
+  },
+  "fieldbook.txt -> odt": {
+    "exact": true,
+    "metrics": {
+      "Paragraphs": [
+        4,
+        4
+      ],
+      "Words": [
+        36,
+        36
+      ]
+    },
+    "similarity": 1.0
+  },
+  "fieldbook.txt -> org": {
+    "exact": true,
+    "metrics": {
+      "Paragraphs": [
+        4,
+        4
+      ],
+      "Words": [
+        36,
+        36
+      ]
+    },
+    "similarity": 1.0
+  },
+  "fieldbook.txt -> rst": {
+    "exact": false,
+    "metrics": {
+      "Paragraphs": [
+        4,
+        3
+      ],
+      "Words": [
+        36,
+        36
+      ]
+    },
+    "similarity": 1.0
+  },
+  "fieldbook.txt -> rtf": {
+    "exact": true,
+    "metrics": {
+      "Paragraphs": [
+        4,
+        4
+      ],
+      "Words": [
+        36,
+        36
+      ]
+    },
+    "similarity": 1.0
+  },
+  "fieldbook.txt -> tex": {
+    "exact": true,
+    "metrics": {
+      "Paragraphs": [
+        4,
+        4
+      ],
+      "Words": [
+        36,
+        36
+      ]
+    },
+    "similarity": 1.0
+  },
+  "guide.rst -> adoc": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        13,
+        13
+      ],
+      "Table cells": [
+        6,
+        6
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        58,
+        58
+      ]
+    },
+    "similarity": 1.0
+  },
+  "guide.rst -> docx": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        13,
+        13
+      ],
+      "Table cells": [
+        6,
+        6
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        58,
+        58
+      ]
+    },
+    "similarity": 1.0
+  },
+  "guide.rst -> epub": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        1,
+        2
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        13,
+        16
+      ],
+      "Table cells": [
+        6,
+        6
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        58,
+        60
+      ]
+    },
+    "similarity": 1.0
+  },
+  "guide.rst -> html": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        1,
+        2
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        13,
+        13
+      ],
+      "Table cells": [
+        6,
+        6
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        58,
+        60
+      ]
+    },
+    "similarity": 1.0
+  },
+  "guide.rst -> md": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        13,
+        13
+      ],
+      "Table cells": [
+        6,
+        6
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        58,
+        58
+      ]
+    },
+    "similarity": 1.0
+  },
+  "guide.rst -> odt": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        13,
+        14
+      ],
+      "Table cells": [
+        6,
+        6
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        58,
+        58
+      ]
+    },
+    "similarity": 1.0
+  },
+  "guide.rst -> org": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        13,
+        13
+      ],
+      "Table cells": [
+        6,
+        6
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        58,
+        58
+      ]
+    },
+    "similarity": 1.0
+  },
+  "guide.rst -> rtf": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        13,
+        14
+      ],
+      "Table cells": [
+        6,
+        6
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        58,
+        58
+      ]
+    },
+    "similarity": 1.0
+  },
+  "guide.rst -> tex": {
+    "exact": false,
+    "metrics": {
+      "Headings": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        13,
+        13
+      ],
+      "Table cells": [
+        6,
+        6
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        58,
+        58
+      ]
+    },
+    "similarity": 0.931
+  },
+  "guide.rst -> txt": {
+    "exact": false,
+    "metrics": {
+      "Words": [
+        58,
+        58
+      ]
+    },
+    "similarity": 1.0
+  },
+  "letter.odt -> adoc": {
+    "exact": false,
+    "metrics": {
+      "Footnotes": [
+        1,
+        0
+      ],
+      "Headings": [
+        4,
+        4
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        19
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        133,
+        133
+      ]
+    },
+    "similarity": 0.9023
+  },
+  "letter.odt -> docx": {
+    "exact": true,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        4,
+        4
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        20
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        133,
+        133
+      ]
+    },
+    "similarity": 1.0
+  },
+  "letter.odt -> epub": {
+    "exact": true,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        4,
+        4
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        22
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        133,
+        134
+      ]
+    },
+    "similarity": 1.0
+  },
+  "letter.odt -> html": {
+    "exact": true,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        4,
+        4
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        20
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        133,
+        134
+      ]
+    },
+    "similarity": 1.0
+  },
+  "letter.odt -> md": {
+    "exact": true,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        4,
+        4
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        20
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        133,
+        133
+      ]
+    },
+    "similarity": 1.0
+  },
+  "letter.odt -> org": {
+    "exact": true,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        4,
+        4
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        20
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        133,
+        133
+      ]
+    },
+    "similarity": 1.0
+  },
+  "letter.odt -> rst": {
+    "exact": false,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        4,
+        2
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        21
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        133,
+        134
+      ]
+    },
+    "similarity": 1.0
+  },
+  "letter.odt -> rtf": {
+    "exact": false,
+    "metrics": {
+      "Footnotes": [
+        1,
+        0
+      ],
+      "Headings": [
+        4,
+        4
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        10
+      ],
+      "Table cells": [
+        9,
+        0
+      ],
+      "Tables": [
+        1,
+        0
+      ],
+      "Words": [
+        133,
+        113
+      ]
+    },
+    "similarity": 0.8045
+  },
+  "letter.odt -> tex": {
+    "exact": true,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        4,
+        4
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        20
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        133,
+        134
+      ]
+    },
+    "similarity": 1.0
+  },
+  "letter.odt -> txt": {
+    "exact": false,
+    "metrics": {
+      "Words": [
+        133,
+        135
+      ]
+    },
+    "similarity": 1.0
+  },
+  "manual.adoc -> docx": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        2,
+        2
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        14,
+        14
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        57,
+        57
+      ]
+    },
+    "similarity": 1.0
+  },
+  "manual.adoc -> epub": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        2,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        14,
+        18
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        57,
+        60
+      ]
+    },
+    "similarity": 1.0
+  },
+  "manual.adoc -> html": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        2,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        14,
+        14
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        57,
+        60
+      ]
+    },
+    "similarity": 1.0
+  },
+  "manual.adoc -> md": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        2,
+        2
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        14,
+        14
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        57,
+        57
+      ]
+    },
+    "similarity": 1.0
+  },
+  "manual.adoc -> odt": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        2,
+        2
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        14,
+        15
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        57,
+        57
+      ]
+    },
+    "similarity": 1.0
+  },
+  "manual.adoc -> org": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        2,
+        2
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        14,
+        14
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        57,
+        57
+      ]
+    },
+    "similarity": 1.0
+  },
+  "manual.adoc -> rst": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        2,
+        2
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        14,
+        14
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        57,
+        57
+      ]
+    },
+    "similarity": 1.0
+  },
+  "manual.adoc -> rtf": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        2,
+        2
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        14,
+        15
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        57,
+        57
+      ]
+    },
+    "similarity": 1.0
+  },
+  "manual.adoc -> tex": {
+    "exact": false,
+    "metrics": {
+      "Headings": [
+        2,
+        2
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        14,
+        14
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        57,
+        57
+      ]
+    },
+    "similarity": 0.9474
+  },
+  "manual.adoc -> txt": {
+    "exact": false,
+    "metrics": {
+      "Words": [
+        57,
+        54
+      ]
+    },
+    "similarity": 0.9474
+  },
+  "memo.rtf -> adoc": {
+    "exact": true,
+    "metrics": {
+      "Paragraphs": [
+        4,
+        4
+      ],
+      "Words": [
+        45,
+        45
+      ]
+    },
+    "similarity": 1.0
+  },
+  "memo.rtf -> docx": {
+    "exact": true,
+    "metrics": {
+      "Paragraphs": [
+        4,
+        4
+      ],
+      "Words": [
+        45,
+        45
+      ]
+    },
+    "similarity": 1.0
+  },
+  "memo.rtf -> epub": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        0,
+        1
+      ],
+      "Paragraphs": [
+        4,
+        6
+      ],
+      "Words": [
+        45,
+        47
+      ]
+    },
+    "similarity": 1.0
+  },
+  "memo.rtf -> html": {
+    "exact": true,
+    "metrics": {
+      "Paragraphs": [
+        4,
+        4
+      ],
+      "Words": [
+        45,
+        46
+      ]
+    },
+    "similarity": 1.0
+  },
+  "memo.rtf -> md": {
+    "exact": true,
+    "metrics": {
+      "Paragraphs": [
+        4,
+        4
+      ],
+      "Words": [
+        45,
+        45
+      ]
+    },
+    "similarity": 1.0
+  },
+  "memo.rtf -> odt": {
+    "exact": true,
+    "metrics": {
+      "Paragraphs": [
+        4,
+        4
+      ],
+      "Words": [
+        45,
+        45
+      ]
+    },
+    "similarity": 1.0
+  },
+  "memo.rtf -> org": {
+    "exact": true,
+    "metrics": {
+      "Paragraphs": [
+        4,
+        4
+      ],
+      "Words": [
+        45,
+        45
+      ]
+    },
+    "similarity": 1.0
+  },
+  "memo.rtf -> rst": {
+    "exact": true,
+    "metrics": {
+      "Paragraphs": [
+        4,
+        4
+      ],
+      "Words": [
+        45,
+        45
+      ]
+    },
+    "similarity": 1.0
+  },
+  "memo.rtf -> tex": {
+    "exact": true,
+    "metrics": {
+      "Paragraphs": [
+        4,
+        4
+      ],
+      "Words": [
+        45,
+        45
+      ]
+    },
+    "similarity": 1.0
+  },
+  "memo.rtf -> txt": {
+    "exact": true,
+    "metrics": {
+      "Words": [
+        45,
+        45
+      ]
+    },
+    "similarity": 1.0
+  },
+  "notes.md -> adoc": {
+    "exact": false,
+    "metrics": {
+      "Footnotes": [
+        1,
+        0
+      ],
+      "Headings": [
+        4,
+        4
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        19
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        137,
+        136
+      ]
+    },
+    "similarity": 0.9343
+  },
+  "notes.md -> docx": {
+    "exact": true,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        4,
+        4
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        20
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        137,
+        137
+      ]
+    },
+    "similarity": 1.0
+  },
+  "notes.md -> epub": {
+    "exact": true,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        4,
+        4
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        22
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        137,
+        138
+      ]
+    },
+    "similarity": 1.0
+  },
+  "notes.md -> html": {
+    "exact": true,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        4,
+        4
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        20
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        137,
+        138
+      ]
+    },
+    "similarity": 1.0
+  },
+  "notes.md -> odt": {
+    "exact": false,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        4,
+        4
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        20
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        137,
+        133
+      ]
+    },
+    "similarity": 0.9708
+  },
+  "notes.md -> org": {
+    "exact": false,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        4,
+        4
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        20
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        137,
+        133
+      ]
+    },
+    "similarity": 0.9708
+  },
+  "notes.md -> rst": {
+    "exact": false,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        4,
+        2
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        21
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        137,
+        137
+      ]
+    },
+    "similarity": 1.0
+  },
+  "notes.md -> rtf": {
+    "exact": false,
+    "metrics": {
+      "Footnotes": [
+        1,
+        0
+      ],
+      "Headings": [
+        4,
+        4
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        10
+      ],
+      "Table cells": [
+        9,
+        0
+      ],
+      "Tables": [
+        1,
+        0
+      ],
+      "Words": [
+        137,
+        113
+      ]
+    },
+    "similarity": 0.781
+  },
+  "notes.md -> tex": {
+    "exact": false,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        4,
+        4
+      ],
+      "Images": [
+        1,
+        0
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        20,
+        20
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        137,
+        133
+      ]
+    },
+    "similarity": 0.9708
+  },
+  "notes.md -> txt": {
+    "exact": false,
+    "metrics": {
+      "Words": [
+        137,
+        135
+      ]
+    },
+    "similarity": 0.9708
+  },
+  "paper.tex -> adoc": {
+    "exact": true,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        14,
+        14
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        75,
+        75
+      ]
+    },
+    "similarity": 1.0
+  },
+  "paper.tex -> docx": {
+    "exact": true,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        14,
+        14
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        75,
+        75
+      ]
+    },
+    "similarity": 1.0
+  },
+  "paper.tex -> epub": {
+    "exact": true,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        14,
+        17
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        75,
+        76
+      ]
+    },
+    "similarity": 1.0
+  },
+  "paper.tex -> html": {
+    "exact": true,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        14,
+        14
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        75,
+        76
+      ]
+    },
+    "similarity": 1.0
+  },
+  "paper.tex -> md": {
+    "exact": true,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        14,
+        14
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        75,
+        75
+      ]
+    },
+    "similarity": 1.0
+  },
+  "paper.tex -> odt": {
+    "exact": true,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        14,
+        14
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        75,
+        75
+      ]
+    },
+    "similarity": 1.0
+  },
+  "paper.tex -> org": {
+    "exact": true,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        14,
+        14
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        75,
+        75
+      ]
+    },
+    "similarity": 1.0
+  },
+  "paper.tex -> rst": {
+    "exact": true,
+    "metrics": {
+      "Footnotes": [
+        1,
+        1
+      ],
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        14,
+        14
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        75,
+        75
+      ]
+    },
+    "similarity": 1.0
+  },
+  "paper.tex -> rtf": {
+    "exact": false,
+    "metrics": {
+      "Footnotes": [
+        1,
+        0
+      ],
+      "Headings": [
+        3,
+        3
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        14,
+        13
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        75,
+        69
+      ]
+    },
+    "similarity": 0.92
+  },
+  "paper.tex -> txt": {
+    "exact": false,
+    "metrics": {
+      "Words": [
+        75,
+        75
+      ]
+    },
+    "similarity": 1.0
+  },
+  "report.docx -> adoc": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        16,
+        16
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        69,
+        70
+      ]
+    },
+    "similarity": 1.0
+  },
+  "report.docx -> epub": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        16,
+        18
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        69,
+        70
+      ]
+    },
+    "similarity": 1.0
+  },
+  "report.docx -> html": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        16,
+        16
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        69,
+        70
+      ]
+    },
+    "similarity": 1.0
+  },
+  "report.docx -> md": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        16,
+        16
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        69,
+        69
+      ]
+    },
+    "similarity": 1.0
+  },
+  "report.docx -> odt": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        16,
+        16
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        69,
+        69
+      ]
+    },
+    "similarity": 1.0
+  },
+  "report.docx -> org": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        16,
+        16
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        69,
+        69
+      ]
+    },
+    "similarity": 1.0
+  },
+  "report.docx -> rst": {
+    "exact": false,
+    "metrics": {
+      "Headings": [
+        3,
+        2
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        16,
+        16
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        69,
+        70
+      ]
+    },
+    "similarity": 1.0
+  },
+  "report.docx -> rtf": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        16,
+        16
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        69,
+        70
+      ]
+    },
+    "similarity": 1.0
+  },
+  "report.docx -> tex": {
+    "exact": false,
+    "metrics": {
+      "Headings": [
+        3,
+        3
+      ],
+      "Images": [
+        1,
+        1
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        16,
+        14
+      ],
+      "Table cells": [
+        9,
+        9
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        69,
+        68
+      ]
+    },
+    "similarity": 0.971
+  },
+  "report.docx -> txt": {
+    "exact": false,
+    "metrics": {
+      "Words": [
+        69,
+        69
+      ]
+    },
+    "similarity": 1.0
+  },
+  "todo.org -> adoc": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        4,
+        4
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        11,
+        11
+      ],
+      "Table cells": [
+        6,
+        6
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        60,
+        60
+      ]
+    },
+    "similarity": 1.0
+  },
+  "todo.org -> docx": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        4,
+        4
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        11,
+        11
+      ],
+      "Table cells": [
+        6,
+        6
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        60,
+        60
+      ]
+    },
+    "similarity": 1.0
+  },
+  "todo.org -> epub": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        4,
+        4
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        11,
+        15
+      ],
+      "Table cells": [
+        6,
+        6
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        60,
+        60
+      ]
+    },
+    "similarity": 1.0
+  },
+  "todo.org -> html": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        4,
+        5
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        11,
+        11
+      ],
+      "Table cells": [
+        6,
+        6
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        60,
+        62
+      ]
+    },
+    "similarity": 1.0
+  },
+  "todo.org -> md": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        4,
+        4
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        11,
+        11
+      ],
+      "Table cells": [
+        6,
+        6
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        60,
+        60
+      ]
+    },
+    "similarity": 1.0
+  },
+  "todo.org -> odt": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        4,
+        4
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        11,
+        12
+      ],
+      "Table cells": [
+        6,
+        6
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        60,
+        60
+      ]
+    },
+    "similarity": 1.0
+  },
+  "todo.org -> rst": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        4,
+        4
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        11,
+        11
+      ],
+      "Table cells": [
+        6,
+        6
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        60,
+        60
+      ]
+    },
+    "similarity": 1.0
+  },
+  "todo.org -> rtf": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        4,
+        4
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        11,
+        12
+      ],
+      "Table cells": [
+        6,
+        6
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        60,
+        60
+      ]
+    },
+    "similarity": 1.0
+  },
+  "todo.org -> tex": {
+    "exact": true,
+    "metrics": {
+      "Headings": [
+        4,
+        4
+      ],
+      "Links": [
+        1,
+        1
+      ],
+      "Paragraphs": [
+        11,
+        11
+      ],
+      "Table cells": [
+        6,
+        6
+      ],
+      "Tables": [
+        1,
+        1
+      ],
+      "Words": [
+        60,
+        60
+      ]
+    },
+    "similarity": 1.0
+  },
+  "todo.org -> txt": {
+    "exact": false,
+    "metrics": {
+      "Words": [
+        60,
+        58
+      ]
+    },
+    "similarity": 0.9667
+  }
+}

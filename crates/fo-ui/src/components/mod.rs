@@ -173,6 +173,7 @@ pub fn App() -> impl IntoView {
     provide_context(ctx);
     let reading_now = move || ctx.tab.get() == Category::Read && ctx.reading.get().is_some();
 
+    crate::bridge::start_pandoc_host();
     listen("job-event", move |ev: JobEvent| {
         ctx.jobs.update(|j| apply_event(j, ev))
     });

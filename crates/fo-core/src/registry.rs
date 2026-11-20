@@ -22,7 +22,7 @@ impl Registry {
             .tools
             .iter()
             .filter(|t| t.accepts(kind))
-            .map(|t| t.info())
+            .map(|t| t.info_for(kind))
             .filter(|i| i.platforms.contains(&platform))
             .collect();
         v.sort_by(|a, b| a.label.cmp(&b.label));

@@ -151,3 +151,45 @@ fn unreadable_kinds_say_why() {
     std::fs::write(&bin, [0u8, 1, 2, 3, 0xFF, 0xFE, 7, 0]).unwrap();
     assert!(s.open(&bin).unwrap_err().contains("can't read"));
 }
+
+#[test]
+fn word_documents_open_through_pandoc_with_their_images() {
+    let s = sessions();
+    let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/corpus");
+    assert!(
+        s.open(&corpus.join("report.docx"))
+            .unwrap_err()
+            .contains("later"),
+        "no engine yet"
+    );
+    s.set_pandoc(std::sync::Arc::new(
+        fo_core::pandoc::NativePandoc::find().expect("native pandoc"),
+    ));
+    let v = s.open(&corpus.join("report.docx")).unwrap();
+    let ReaderBody::Page(html) = &v.body else {
+        panic!("{:?}", v.body)
+    };
+    assert!(
+        html.contains("Quarterly river report") && html.contains("বাংলা"),
+        "{html}"
+    );
+    let src = html
+        .split("data-fo-src=\"")
+        .nth(1)
+        .and_then(|r| r.split('"').next())
+        .expect("an image")
+        .to_owned();
+    assert!(src.starts_with("media/"), "{src}");
+    let (bytes, mime) = s.serve(&format!("/{}/res/{src}", v.doc)).unwrap();
+    assert!(mime.starts_with("image/") && !bytes.is_empty());
+    assert_eq!(
+        s.serve(&format!("/{}/res/media/nope.png", v.doc))
+            .unwrap_err()
+            .0,
+        404
+    );
+    let odt = s.open(&corpus.join("letter.odt")).unwrap();
+    assert!(matches!(odt.body, ReaderBody::Page(ref h) if h.contains("নদীর")));
+    let rtf = s.open(&corpus.join("memo.rtf")).unwrap();
+    assert!(matches!(rtf.body, ReaderBody::Page(ref h) if h.contains("survey team")));
+}

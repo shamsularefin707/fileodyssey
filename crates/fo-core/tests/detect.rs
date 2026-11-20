@@ -267,3 +267,19 @@ fn tga_by_extension() {
     let p = write(&d, "pic.TGA", &buf);
     assert_eq!(detect_kind(&p).unwrap(), FileKind::Image(ImageFormat::Tga));
 }
+
+#[test]
+fn markup_sources_by_extension() {
+    let d = TempDir::new().unwrap();
+    for (name, kind) in [
+        ("a.tex", FileKind::Latex),
+        ("a.latex", FileKind::Latex),
+        ("a.rst", FileKind::Rst),
+        ("a.org", FileKind::Org),
+        ("a.adoc", FileKind::AsciiDoc),
+        ("a.asciidoc", FileKind::AsciiDoc),
+    ] {
+        let p = write(&d, name, b"Some text\n");
+        assert_eq!(detect_file(&p).unwrap().kind, kind, "{name}");
+    }
+}
