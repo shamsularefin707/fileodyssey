@@ -45,6 +45,7 @@ percent-encoding = "2"
 similar = "2"
 csv = "1"
 rust_xlsxwriter = { version = "0.103", default-features = false }
+docx-rs = { version = "0.4.22", default-features = false, features = ["image"] }
 unicode-normalization = "0.1"
 
 [dev-dependencies]

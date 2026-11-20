@@ -50,3 +50,53 @@ fn extracts_glyphs_images_and_links() {
         pg.links[0]
     );
 }
+
+#[test]
+fn extracts_rules_fonts_and_colours() {
+    let d = tempfile::TempDir::new().unwrap();
+    let p = d.path().join("ruled.pdf");
+    std::fs::write(&p, fixture::ruled_pdf()).unwrap();
+    let pg = &engine().unwrap().extract(&p).unwrap()[0];
+    let horiz: Vec<_> = pg
+        .rules
+        .iter()
+        .filter(|r| r.x1 - r.x0 > r.y1 - r.y0)
+        .collect();
+    let vert: Vec<_> = pg
+        .rules
+        .iter()
+        .filter(|r| r.x1 - r.x0 <= r.y1 - r.y0)
+        .collect();
+    assert_eq!((horiz.len(), vert.len()), (4, 3), "{:?}", pg.rules);
+    // Top-left origin: the grid's top edge (y 600 from the bottom) is at 242.
+    assert!(horiz
+        .iter()
+        .any(|r| (r.y0 + r.y1) / 2.0 - 242.0 < 1.0 && r.x0 < 101.0 && r.x1 > 299.0));
+    assert!(
+        horiz
+            .iter()
+            .any(|r| ((r.y0 + r.y1) / 2.0 - 392.0).abs() < 1.0),
+        "filled rule at y 450"
+    );
+    assert!(vert
+        .iter()
+        .any(|r| ((r.x0 + r.x1) / 2.0 - 200.0).abs() < 1.0 && r.y1 - r.y0 > 99.0));
+    let r = pg.glyphs.iter().find(|g| g.text == "R").unwrap();
+    assert_eq!(r.color, [255, 0, 0], "{r:?}");
+    assert!(r.font.contains("Times"), "{r:?}");
+}
+
+#[test]
+fn font_families_from_pdf_names() {
+    use fo_core::pdfconv::family_of;
+    assert_eq!(
+        family_of("ABCDEF+TimesNewRomanPS-BoldMT"),
+        "Times New Roman"
+    );
+    assert_eq!(family_of("ArialMT"), "Arial");
+    assert_eq!(family_of("QWERTY+DejaVuSans-Bold"), "DejaVu Sans");
+    assert_eq!(family_of("NotoSansBengali-Regular"), "Noto Sans Bengali");
+    assert_eq!(family_of("FreeSerif"), "FreeSerif");
+    assert_eq!(family_of("Helvetica-Oblique"), "Helvetica");
+    assert_eq!(family_of("Liberation Serif"), "Liberation Serif");
+}

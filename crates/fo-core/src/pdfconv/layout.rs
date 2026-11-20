@@ -17,15 +17,34 @@
 //!    lines), list items or paragraphs. Images take part in the cut, so they
 //!    land between the paragraphs around them.
 
+use super::notes::split_notes;
+use super::table::find_tables;
+pub use super::table::{Cell, Table};
 use super::{Glyph, PageContent};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Script {
+    #[default]
+    Normal,
+    Super,
+    Sub,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Span {
     pub text: String,
     pub bold: bool,
     pub italic: bool,
     pub mono: bool,
     pub link: Option<String>,
+    /// Font family, "" when unknown.
+    pub font: String,
+    /// Size in points.
+    pub size: f32,
+    pub color: [u8; 3],
+    pub script: Script,
+    /// Index of the footnote this span marks (it is the note's reference).
+    pub note: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -59,6 +78,7 @@ pub enum BlockKind {
     },
     /// Index into all images, numbered page by page.
     Image(usize),
+    Table(Table),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -98,6 +118,8 @@ struct Frag {
     line: Line,
     /// Gaps (in em) at each `MAYBE_SPACE` placeholder, in order.
     gaps: Vec<f32>,
+    /// Bottom edge of each span's glyphs (spans don't mix sizes).
+    bottoms: Vec<f32>,
     last_x0: f32,
     last_x1: f32,
     last_ymid: f32,
@@ -114,6 +136,7 @@ enum Item {
         x1: f32,
         y1: f32,
     },
+    Table(Box<Table>, [f32; 4]),
 }
 
 impl Item {
@@ -121,6 +144,7 @@ impl Item {
         match self {
             Item::Text(l) => (l.x0, l.y0, l.x1, l.y1),
             Item::Image { x0, y0, x1, y1, .. } => (*x0, *y0, *x1, *y1),
+            Item::Table(_, b) => (b[0], b[1], b[2], b[3]),
         }
     }
 }
@@ -142,6 +166,8 @@ fn fragments(page: &PageContent) -> Vec<Line> {
     let mut cur: Option<Frag> = None;
     let mut space = false;
     let mut real_space = false;
+    // A generated line break was seen since the last drawn glyph.
+    let mut brk = false;
     let mut recent: Vec<String> = Vec::new();
     // Index in `recent` of the last glyph a mark copy repeated (see below).
     let mut dup: Option<usize> = None;
@@ -153,6 +179,7 @@ fn fragments(page: &PageContent) -> Vec<Line> {
     let finish = |cur: &mut Option<Frag>, out: &mut Vec<Line>| {
         if let Some(mut f) = cur.take() {
             resolve_spaces(&mut f);
+            mark_scripts(&mut f);
             if !f.line.text().trim().is_empty() {
                 out.push(f.line);
             }
@@ -161,7 +188,9 @@ fn fragments(page: &PageContent) -> Vec<Line> {
     for g in &page.glyphs {
         let blank = g.text.trim().is_empty() && !matches!(g.text.as_str(), "\u{ad}" | "\u{2}");
         if g.generated && (g.text.contains('\n') || g.text.contains('\r')) {
-            finish(&mut cur, &mut out);
+            // Provisional: PDFium also breaks before a raised superscript
+            // that carries on the same line.
+            brk = true;
             space = false;
             continue;
         }
@@ -218,7 +247,8 @@ fn fragments(page: &PageContent) -> Vec<Line> {
             let vert = (ymid - f.last_ymid).abs() > if script { 0.9 } else { 0.55 } * fs;
             let gap = g.x0 - f.last_x1;
             let back = g.x1 < f.last_x0 - g.size.max(1.0);
-            if vert || back || gap > 1.0 * fs {
+            let carries_on = !vert && !back && gap.abs() < 0.3 * fs;
+            if vert || back || gap > 1.0 * fs || (brk && !carries_on) {
                 finish(&mut cur, &mut out);
                 space = false;
             } else if gap > 0.3 * g.size {
@@ -241,10 +271,17 @@ fn fragments(page: &PageContent) -> Vec<Line> {
             last_ymid: ymid,
             last_size: g.size,
             gaps: Vec::new(),
+            bottoms: Vec::new(),
         });
         let l = &mut f.line;
         let style = |s: &Span| {
-            s.bold == g.bold && s.italic == g.italic && s.mono == g.mono && s.link == link
+            s.bold == g.bold
+                && s.italic == g.italic
+                && s.mono == g.mono
+                && s.link == link
+                && s.font == g.font
+                && s.color == g.color
+                && (s.size - g.size).abs() < 0.25
         };
         if space && !l.spans.is_empty() {
             if real_space {
@@ -259,14 +296,26 @@ fn fragments(page: &PageContent) -> Vec<Line> {
             }
         }
         match l.spans.last_mut() {
-            Some(s) if style(s) => s.text.push_str(&g.text),
-            _ => l.spans.push(Span {
-                text: g.text.clone(),
-                bold: g.bold,
-                italic: g.italic,
-                mono: g.mono,
-                link,
-            }),
+            Some(s) if style(s) => {
+                s.text.push_str(&g.text);
+                if let Some(b) = f.bottoms.last_mut() {
+                    *b = b.max(g.y1);
+                }
+            }
+            _ => {
+                l.spans.push(Span {
+                    text: g.text.clone(),
+                    bold: g.bold,
+                    italic: g.italic,
+                    mono: g.mono,
+                    link,
+                    font: g.font.clone(),
+                    size: g.size,
+                    color: g.color,
+                    ..Span::default()
+                });
+                f.bottoms.push(g.y1);
+            }
         }
         l.x0 = l.x0.min(g.x0);
         l.y0 = l.y0.min(g.y0);
@@ -281,6 +330,7 @@ fn fragments(page: &PageContent) -> Vec<Line> {
         f.last_size = g.size;
         space = false;
         real_space = false;
+        brk = false;
         recent.push(g.text.clone());
         if recent.len() > 8 {
             recent.remove(0);
@@ -288,6 +338,35 @@ fn fragments(page: &PageContent) -> Vec<Line> {
     }
     finish(&mut cur, &mut out);
     out
+}
+
+/// Smaller spans raised above (or dropped below) the line's main text are
+/// superscripts (subscripts). The main text is the size with the most
+/// characters.
+fn mark_scripts(f: &mut Frag) {
+    let mut by_size: Vec<(f32, usize, f32)> = Vec::new();
+    for (s, b) in f.line.spans.iter().zip(&f.bottoms) {
+        let n = s.text.trim().chars().count();
+        match by_size.iter_mut().find(|e| (e.0 - s.size).abs() < 0.25) {
+            Some(e) => {
+                e.1 += n;
+                e.2 = e.2.max(*b);
+            }
+            None => by_size.push((s.size, n, *b)),
+        }
+    }
+    let Some(&(main, _, bottom)) = by_size.iter().max_by_key(|e| e.1) else {
+        return;
+    };
+    for (s, b) in f.line.spans.iter_mut().zip(&f.bottoms) {
+        if s.size < 0.85 * main && !s.text.trim().is_empty() {
+            if *b < bottom - 0.2 * main {
+                s.script = Script::Super;
+            } else if *b > bottom + 0.1 * main {
+                s.script = Script::Sub;
+            }
+        }
+    }
 }
 
 /// Placeholder for "maybe a word space", decided per line by `resolve_spaces`.
@@ -358,7 +437,16 @@ fn margin_key(l: &Line) -> String {
         .to_owned()
 }
 
-fn drop_margins(pages: &[PageContent], frags: &mut [Vec<Line>]) {
+/// What the page margins held: the running header and footer text, and
+/// whether pages are numbered.
+#[derive(Debug, Default)]
+struct Margins {
+    header: Option<String>,
+    footer: Option<String>,
+    page_numbers: bool,
+}
+
+fn drop_margins(pages: &[PageContent], frags: &mut [Vec<Line>]) -> Margins {
     let in_margin = |l: &Line, h: f32| l.y1 < 0.08 * h || l.y0 > 0.92 * h;
     let mut seen: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     for (p, fs) in pages.iter().zip(frags.iter()) {
@@ -374,15 +462,34 @@ fn drop_margins(pages: &[PageContent], frags: &mut [Vec<Line>]) {
         }
     }
     let n = pages.len();
+    let mut m = Margins::default();
+    let mut best: [(usize, Option<String>); 2] = [(0, None), (0, None)];
     for (p, fs) in pages.iter().zip(frags.iter_mut()) {
         fs.retain(|l| {
             if !in_margin(l, p.height) {
                 return true;
             }
-            let repeated = n >= 3 && seen.get(&margin_key(l)).copied().unwrap_or(0) * 2 >= n;
-            !(page_number_like(&l.text()) || repeated)
+            let count = seen.get(&margin_key(l)).copied().unwrap_or(0);
+            let repeated = n >= 2 && (count == n || (n >= 3 && count * 2 >= n));
+            let text = l.text().trim().to_owned();
+            if page_number_like(&text) {
+                m.page_numbers = true;
+                return false;
+            }
+            if repeated {
+                let slot = &mut best[(l.y0 > 0.5 * p.height) as usize];
+                if count > slot.0 {
+                    *slot = (count, Some(text));
+                }
+                return false;
+            }
+            true
         });
     }
+    let [(_, header), (_, footer)] = best;
+    m.header = header;
+    m.footer = footer;
+    m
 }
 
 // ------------------------------------------------------------------- xy-cut
@@ -442,7 +549,7 @@ fn xycut(items: Vec<Item>, body: f32, leaves: &mut Vec<Vec<Item>>) {
 
 // ------------------------------------------------------------------- blocks
 
-fn join_same_baseline(mut lines: Vec<Line>) -> Vec<Line> {
+pub(crate) fn join_same_baseline(mut lines: Vec<Line>) -> Vec<Line> {
     lines.sort_by(|a, b| a.y0.total_cmp(&b.y0).then(a.x0.total_cmp(&b.x0)));
     let mut out: Vec<Line> = Vec::new();
     for l in lines {
@@ -519,6 +626,9 @@ struct Proto {
     lines: Vec<Line>,
     list: Option<bool>,
     image: Option<usize>,
+    /// The list marker taken off the first line ("a. ").
+    marker: String,
+    table: Option<Table>,
 }
 
 fn leaf_blocks(items: Vec<Item>, out: &mut Vec<Proto>) {
@@ -533,6 +643,18 @@ fn leaf_blocks(items: Vec<Item>, out: &mut Vec<Proto>) {
                     lines: vec![],
                     list: None,
                     image: Some(idx),
+                    marker: String::new(),
+                    table: None,
+                },
+            )),
+            Item::Table(t, b) => rest.push((
+                b[1],
+                Proto {
+                    lines: vec![],
+                    list: None,
+                    image: None,
+                    marker: String::new(),
+                    table: Some(*t),
                 },
             )),
         }
@@ -571,14 +693,18 @@ fn leaf_blocks(items: Vec<Item>, out: &mut Vec<Proto>) {
                 rest.push((c.lines[0].y0, c));
             }
             let mut l = l.clone();
+            let text = l.text();
             let list = marker.map(|(ordered, len)| {
                 strip_marker(&mut l, len);
                 ordered
             });
+            let taken = text.len() - text.trim_start().len() + marker.map_or(0, |m| m.1);
             cur = Some(Proto {
                 lines: vec![l],
                 list,
                 image: None,
+                marker: text.get(..taken).unwrap_or("").trim_start().to_owned(),
+                table: None,
             });
         } else if let Some(c) = cur.as_mut() {
             c.lines.push(l.clone());
@@ -607,14 +733,82 @@ fn body_size(pages: &[PageContent]) -> f32 {
         .unwrap_or(10.0)
 }
 
+/// A reconstructed document: the body, its footnotes (referenced by
+/// `Span::note`), and the running header and footer kept apart.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Doc {
+    pub blocks: Vec<Block>,
+    pub notes: Vec<Vec<Line>>,
+    pub header: Option<String>,
+    pub footer: Option<String>,
+    pub page_numbers: bool,
+    /// The pages' text in content-stream order, with word spaces as
+    /// extraction decided them and running header/footer text set aside:
+    /// what the PDF says, before any layout. Super/subscripts stand apart.
+    pub stream_text: String,
+}
+
+/// The body text's font family and size: the most common by character
+/// count over paragraphs and list items.
+pub fn body_style(doc: &Doc) -> (String, f32) {
+    let mut count: std::collections::HashMap<(String, i32), usize> = Default::default();
+    for b in &doc.blocks {
+        if matches!(b.kind, BlockKind::Para | BlockKind::ListItem { .. }) {
+            for s in b.lines.iter().flat_map(|l| &l.spans) {
+                *count
+                    .entry((s.font.clone(), (s.size * 2.0).round() as i32))
+                    .or_default() += s.text.chars().count();
+            }
+        }
+    }
+    count
+        .into_iter()
+        .max_by_key(|(_, n)| *n)
+        .map(|((f, s), _)| (f, s as f32 / 2.0))
+        .unwrap_or((String::new(), 11.0))
+}
+
+/// The body blocks only (see `reconstruct`).
 pub fn layout(pages: &[PageContent]) -> Vec<Block> {
+    reconstruct(pages).blocks
+}
+
+pub fn reconstruct(pages: &[PageContent]) -> Doc {
     let body = body_size(pages);
     let mut frags: Vec<Vec<Line>> = pages.iter().map(fragments).collect();
-    drop_margins(pages, &mut frags);
+    let margins = drop_margins(pages, &mut frags);
+    let mut stream_text = String::new();
+    for fs in &frags {
+        for l in fs {
+            for (i, s) in l.spans.iter().enumerate() {
+                let t = if l.hyphen_end && i + 1 == l.spans.len() {
+                    strip_hyphen(&s.text)
+                } else {
+                    &s.text
+                };
+                if s.script == Script::Normal {
+                    stream_text.push_str(t);
+                } else {
+                    stream_text.push(' ');
+                    stream_text.push_str(t);
+                    stream_text.push(' ');
+                }
+            }
+            if !l.hyphen_end {
+                stream_text.push('\n');
+            }
+        }
+        stream_text.push('\n');
+    }
+    let mut notes = Vec::new();
     let mut protos = Vec::new();
     let mut image_base = 0;
     for (p, fs) in pages.iter().zip(frags) {
+        let mut fs = fs;
+        let tables = find_tables(p, &mut fs, body);
+        split_notes(p.height, &mut fs, body, &mut notes);
         let mut items: Vec<Item> = fs.into_iter().map(Item::Text).collect();
+        items.extend(tables.into_iter().map(|(b, t)| Item::Table(Box::new(t), b)));
         for (i, im) in p.images.iter().enumerate() {
             items.push(Item::Image {
                 idx: image_base + i,
@@ -631,10 +825,45 @@ pub fn layout(pages: &[PageContent]) -> Vec<Block> {
             leaf_blocks(leaf, &mut protos);
         }
     }
-    classify(protos, body)
+    Doc {
+        blocks: classify(protos, body),
+        notes,
+        header: margins.header,
+        footer: margins.footer,
+        page_numbers: margins.page_numbers,
+        stream_text,
+    }
 }
 
-fn classify(protos: Vec<Proto>, body: f32) -> Vec<Block> {
+fn classify(mut protos: Vec<Proto>, body: f32) -> Vec<Block> {
+    // A lettered "item" with no neighbour lettered one before or after it is
+    // an initial ("R. Hossain"), not a list.
+    let letter = |p: &Proto| {
+        p.marker
+            .trim_start_matches('(')
+            .chars()
+            .next()
+            .filter(|c| c.is_alphabetic() && p.list == Some(true))
+            .map(|c| c.to_ascii_lowercase() as i32)
+    };
+    let lone: Vec<usize> = (0..protos.len())
+        .filter(|&i| {
+            let Some(c) = letter(&protos[i]) else {
+                return false;
+            };
+            let next_to = |j: Option<usize>, d: i32| {
+                j.and_then(|j| protos.get(j)).and_then(letter) == Some(c + d)
+            };
+            !next_to(i.checked_sub(1), -1) && !next_to(Some(i + 1), 1)
+        })
+        .collect();
+    for i in lone {
+        let p = &mut protos[i];
+        p.list = None;
+        if let Some(s) = p.lines.first_mut().and_then(|l| l.spans.first_mut()) {
+            s.text.insert_str(0, &p.marker);
+        }
+    }
     let size_of = |p: &Proto| {
         let mut s: Vec<f32> = p.lines.iter().map(|l| l.size).collect();
         s.sort_by(f32::total_cmp);
@@ -675,7 +904,9 @@ fn classify(protos: Vec<Proto>, body: f32) -> Vec<Block> {
     protos
         .into_iter()
         .map(|p| {
-            let kind = if let Some(i) = p.image {
+            let kind = if let Some(t) = p.table.clone() {
+                BlockKind::Table(t)
+            } else if let Some(i) = p.image {
                 BlockKind::Image(i)
             } else if is_big(&p) {
                 let key = (size_of(&p) * 2.0).round() as i32;

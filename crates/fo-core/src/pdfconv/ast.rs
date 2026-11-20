@@ -1,6 +1,6 @@
 //! Reconstructed blocks → Pandoc JSON AST.
 
-use super::layout::{strip_hyphen, Block, BlockKind, Line, Span};
+use super::layout::{strip_hyphen, BlockKind, Cell, Doc, Line, Script, Span, Table};
 use serde_json::{json, Value};
 
 /// File name the AST uses for image `i` (0-based, document-wide).
@@ -49,6 +49,11 @@ fn styled(s: &Span, out: &mut Vec<Value>) {
         } else {
             inner
         };
+        let inner = match s.script {
+            Script::Super => vec![json!({"t": "Superscript", "c": inner})],
+            Script::Sub => vec![json!({"t": "Subscript", "c": inner})],
+            Script::Normal => inner,
+        };
         out.extend(inner);
     }
     if s.text.ends_with(char::is_whitespace) && !core.is_empty() {
@@ -59,20 +64,12 @@ fn styled(s: &Span, out: &mut Vec<Value>) {
 /// Inline content of a block: lines joined, hyphenated words rejoined,
 /// runs of one link grouped into a single Link.
 pub fn inlines(lines: &[Line]) -> Vec<Value> {
-    let mut spans: Vec<Span> = Vec::new();
-    for (i, l) in lines.iter().enumerate() {
-        let mut ls = l.spans.clone();
-        if l.hyphen_end {
-            if let Some(last) = ls.last_mut() {
-                last.text = strip_hyphen(&last.text).to_owned();
-            }
-        } else if i + 1 < lines.len() {
-            if let Some(last) = ls.last_mut() {
-                last.text.push(' ');
-            }
-        }
-        spans.extend(ls);
-    }
+    inlines_in(lines, &[])
+}
+
+/// As `inlines`; spans marking a footnote become a Note holding it.
+fn inlines_in(lines: &[Line], notes: &[Vec<Line>]) -> Vec<Value> {
+    let spans = joined_spans(lines);
     let mut out = Vec::new();
     let mut i = 0;
     while i < spans.len() {
@@ -98,7 +95,20 @@ pub fn inlines(lines: &[Line]) -> Vec<Value> {
                 }
             }
             None => {
-                styled(&spans[i], &mut out);
+                match spans[i].note.and_then(|n| notes.get(n)) {
+                    Some(note) => {
+                        // The marker sits right after its word.
+                        if out.last().and_then(|v| v["t"].as_str()) == Some("Space") {
+                            out.pop();
+                        }
+                        let body = inlines_in(note, &[]);
+                        out.push(json!({"t": "Note", "c": [{"t": "Para", "c": body}]}));
+                        if spans[i].text.ends_with(char::is_whitespace) {
+                            push_space(&mut out);
+                        }
+                    }
+                    None => styled(&spans[i], &mut out),
+                }
                 i += 1;
             }
         }
@@ -107,6 +117,75 @@ pub fn inlines(lines: &[Line]) -> Vec<Value> {
         out.pop();
     }
     out
+}
+
+/// A block's spans with its lines joined: a space between lines, and
+/// hyphenated words rejoined.
+pub fn joined_spans(lines: &[Line]) -> Vec<Span> {
+    let mut spans: Vec<Span> = Vec::new();
+    for (i, l) in lines.iter().enumerate() {
+        let mut ls = l.spans.clone();
+        if l.hyphen_end {
+            if let Some(last) = ls.last_mut() {
+                last.text = strip_hyphen(&last.text).to_owned();
+            }
+        } else if i + 1 < lines.len() {
+            if let Some(last) = ls.last_mut() {
+                last.text.push(' ');
+            }
+        }
+        spans.extend(ls);
+    }
+    spans
+}
+
+/// A Pandoc table: header rows in the head, the rest in one body; cells
+/// keep their row and column spans.
+pub fn table(t: &Table) -> Value {
+    let attr = json!(["", [], []]);
+    let row = |r: &Vec<Cell>| {
+        let cells: Vec<Value> = r
+            .iter()
+            .map(|c| {
+                let inl = inlines(&c.lines);
+                let blocks = if inl.is_empty() {
+                    json!([])
+                } else {
+                    json!([{"t": "Plain", "c": inl}])
+                };
+                json!([attr, {"t": "AlignDefault"}, c.rowspan, c.colspan, blocks])
+            })
+            .collect();
+        json!([attr, cells])
+    };
+    // Header cells are bold by look, like headings.
+    let plain: Vec<Vec<Cell>> = t.rows[..t.header_rows]
+        .iter()
+        .map(|r| {
+            r.iter()
+                .cloned()
+                .map(|mut c| {
+                    for s in c.lines.iter_mut().flat_map(|l| l.spans.iter_mut()) {
+                        s.bold = false;
+                    }
+                    c
+                })
+                .collect()
+        })
+        .collect();
+    let head: Vec<Value> = plain.iter().map(row).collect();
+    let body: Vec<Value> = t.rows[t.header_rows..].iter().map(row).collect();
+    let specs: Vec<Value> = (0..t.cols)
+        .map(|_| json!([{"t": "AlignDefault"}, {"t": "ColWidthDefault"}]))
+        .collect();
+    json!({"t": "Table", "c": [
+        attr,
+        [null, []],
+        specs,
+        [attr, head],
+        [[attr, 0, [], body]],
+        [attr, []]
+    ]})
 }
 
 /// Nested lists from consecutive list items, by indent level.
@@ -129,7 +208,9 @@ fn list(items: &[(bool, u8, Vec<Value>)], level: u8, i: &mut usize) -> Value {
     }
 }
 
-pub fn to_ast(blocks: &[Block], api: &Value) -> Value {
+pub fn to_ast(doc: &Doc, api: &Value) -> Value {
+    let blocks = &doc.blocks;
+    let notes = &doc.notes;
     let mut out = Vec::new();
     let mut k = 0;
     while k < blocks.len() {
@@ -144,19 +225,20 @@ pub fn to_ast(blocks: &[Block], api: &Value) -> Value {
                         s.bold = false;
                     }
                 }
-                out.push(json!({"t": "Header", "c": [n, ["", [], []], inlines(&lines)]}));
+                out.push(json!({"t": "Header", "c": [n, ["", [], []], inlines_in(&lines, notes)]}));
             }
             BlockKind::Para => {
-                let inl = inlines(&b.lines);
+                let inl = inlines_in(&b.lines, notes);
                 if !inl.is_empty() {
                     out.push(json!({"t": "Para", "c": inl}));
                 }
             }
+            BlockKind::Table(t) => out.push(table(t)),
             BlockKind::Image(i) => out.push(json!({"t": "Para", "c": [{"t": "Image", "c": [["", [], []], [], [image_name(*i), ""]]}]})),
             BlockKind::ListItem { .. } => {
                 let mut items = Vec::new();
                 while let Some(BlockKind::ListItem { ordered, level }) = blocks.get(k).map(|b| &b.kind) {
-                    items.push((*ordered, *level, inlines(&blocks[k].lines)));
+                    items.push((*ordered, *level, inlines_in(&blocks[k].lines, notes)));
                     k += 1;
                 }
                 let min = items.iter().map(|x| x.1).min().unwrap_or(0);
