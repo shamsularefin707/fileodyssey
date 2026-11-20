@@ -18,6 +18,8 @@ fn run(out: &mut Vec<Glyph>, text: &str, x: f32, y: f32, size: f32, bold: bool) 
             mono: false,
             generated: false,
             hyphen: false,
+            font: String::new(),
+            color: [0, 0, 0],
         });
         cx += w;
     }
@@ -31,6 +33,7 @@ fn page(glyphs: Vec<Glyph>) -> PageContent {
         images: vec![],
         links: vec![],
         spaces: vec![],
+        rules: vec![],
     }
 }
 
@@ -261,6 +264,8 @@ fn stream_order_inside_a_line_is_kept_and_page_numbers_drop() {
                 mono: false,
                 generated: false,
                 hyphen: false,
+                font: String::new(),
+                color: [0, 0, 0],
             });
             g.push(Glyph {
                 text: "ি".into(),
@@ -274,6 +279,8 @@ fn stream_order_inside_a_line_is_kept_and_page_numbers_drop() {
                 mono: false,
                 generated: false,
                 hyphen: false,
+                font: String::new(),
+                color: [0, 0, 0],
             });
         }
         run(&mut g, &n.to_string(), 295.0, 770.0, 9.0, false);
@@ -307,6 +314,8 @@ fn glyph(text: &str, x0: f32, x1: f32, y0: f32, y1: f32, generated: bool) -> Gly
         mono: false,
         generated,
         hyphen: false,
+        font: String::new(),
+        color: [0, 0, 0],
     }
 }
 

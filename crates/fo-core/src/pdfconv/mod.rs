@@ -22,6 +22,60 @@ pub struct Glyph {
     pub generated: bool,
     /// A hyphen PDFium recognised as breaking a word across lines.
     pub hyphen: bool,
+    /// Font family ("Times New Roman"), "" when unknown.
+    pub font: String,
+    /// Fill colour, RGB.
+    pub color: [u8; 3],
+}
+
+/// An axis-aligned line drawn on the page (a table border, a footnote
+/// separator), as a thin box.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Rule {
+    pub x0: f32,
+    pub y0: f32,
+    pub x1: f32,
+    pub y1: f32,
+}
+
+impl Rule {
+    pub fn horizontal(&self) -> bool {
+        self.x1 - self.x0 > self.y1 - self.y0
+    }
+}
+
+/// Family name from a PDF font name: "ABCDEF+TimesNewRomanPS-BoldMT" →
+/// "Times New Roman".
+pub fn family_of(name: &str) -> String {
+    let n = match name.split_once('+') {
+        Some((tag, rest)) if tag.len() == 6 && tag.chars().all(|c| c.is_ascii_uppercase()) => rest,
+        _ => name,
+    };
+    let n = n.split([',', '-']).next().unwrap_or(n);
+    let mut n = n.to_owned();
+    for suffix in ["PSMT", "PS", "MT"] {
+        if n.len() > suffix.len() + 2 && n.ends_with(suffix) {
+            n.truncate(n.len() - suffix.len());
+            break;
+        }
+    }
+    if n.contains(' ') {
+        return n.trim().to_owned();
+    }
+    // CamelCase → words, except families that are written joined.
+    if ["FreeSerif", "FreeSans", "FreeMono"].contains(&n.as_str()) {
+        return n;
+    }
+    let chars: Vec<char> = n.chars().collect();
+    let mut out = String::new();
+    for (i, c) in chars.iter().enumerate() {
+        let in_dejavu = out.ends_with("Deja") && *c == 'V';
+        if i > 0 && c.is_uppercase() && chars[i - 1].is_lowercase() && !in_dejavu {
+            out.push(' ');
+        }
+        out.push(*c);
+    }
+    out
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -53,6 +107,7 @@ pub struct PageContent {
     /// Some producers (Chrome with complex scripts) draw each word gap this
     /// way; when present they are the reliable word boundaries.
     pub spaces: Vec<[f32; 4]>,
+    pub rules: Vec<Rule>,
 }
 pub mod ast;
 pub mod layout;

@@ -4,7 +4,7 @@
 //! the library handle, so one worker thread owns both and serves requests
 //! over a channel. `PdfEngine` is a cheap, cloneable handle to that thread.
 
-use crate::pdfconv::{Glyph, PageContent, PageImage, PageLink};
+use crate::pdfconv::{family_of, Glyph, PageContent, PageImage, PageLink, Rule};
 use fo_types::{PageSize, PdfInfo, Rect, SearchHit, TextSpan};
 use pdfium_render::prelude::*;
 use std::collections::HashMap;
@@ -357,6 +357,93 @@ fn push_space(obj: &PdfPageObject, ph: f32, out: &mut Vec<[f32; 4]>) {
     }
 }
 
+/// Most rules kept per page: a vector drawing can hold thousands of strokes.
+const MAX_RULES: usize = 4000;
+
+/// Shortest segment that counts as a rule, in points.
+const MIN_RULE: f32 = 3.0;
+
+/// Axis-aligned straight lines drawn by path objects: the stroked segments,
+/// and filled rectangles thin enough to be lines. `outer` holds the matrices
+/// of the form XObjects the object sits in, innermost first.
+fn push_rules(obj: &PdfPageObject, ph: f32, outer: &[PdfMatrix], out: &mut Vec<Rule>) {
+    if out.len() >= MAX_RULES {
+        return;
+    }
+    if let Some(form) = obj.as_x_object_form_object() {
+        let mut chain = vec![form.matrix().unwrap_or(PdfMatrix::IDENTITY)];
+        chain.extend_from_slice(outer);
+        for i in 0..form.len() {
+            if let Ok(child) = form.get(i) {
+                push_rules(&child, ph, &chain, out);
+            }
+        }
+        return;
+    }
+    let Some(path) = obj.as_path_object() else {
+        return;
+    };
+    let own = path.matrix().unwrap_or(PdfMatrix::IDENTITY);
+    let to_page = |x: PdfPoints, y: PdfPoints| {
+        let (mut x, mut y) = own.apply_to_points(x, y);
+        for m in outer {
+            (x, y) = m.apply_to_points(x, y);
+        }
+        (x.value, ph - y.value)
+    };
+    // Straight segments, with each closed sub-path's closing edge.
+    let mut segs: Vec<((f32, f32), (f32, f32))> = Vec::new();
+    let mut curved = false;
+    let (mut start, mut at) = ((0.0, 0.0), (0.0, 0.0));
+    for s in path.segments().iter() {
+        let pt = to_page(s.x(), s.y());
+        match s.segment_type() {
+            PdfPathSegmentType::MoveTo => {
+                start = pt;
+                at = pt;
+            }
+            PdfPathSegmentType::LineTo => {
+                segs.push((at, pt));
+                at = pt;
+            }
+            _ => {
+                curved = true;
+                at = pt;
+            }
+        }
+        if s.is_close() {
+            segs.push((at, start));
+            at = start;
+        }
+    }
+    let thin = |(a, b): &((f32, f32), (f32, f32))| {
+        let (dx, dy) = ((a.0 - b.0).abs(), (a.1 - b.1).abs());
+        (dy < 0.5 && dx >= MIN_RULE) || (dx < 0.5 && dy >= MIN_RULE)
+    };
+    if path.is_stroked().unwrap_or(false) {
+        let w = path.stroke_width().map(|w| w.value).unwrap_or(1.0).max(0.1) / 2.0;
+        for s in segs.iter().filter(|s| thin(s)) {
+            let (a, b) = s;
+            out.push(Rule {
+                x0: a.0.min(b.0) - if (a.1 - b.1).abs() < 0.5 { 0.0 } else { w },
+                x1: a.0.max(b.0) + if (a.1 - b.1).abs() < 0.5 { 0.0 } else { w },
+                y0: a.1.min(b.1) - if (a.0 - b.0).abs() < 0.5 { 0.0 } else { w },
+                y1: a.1.max(b.1) + if (a.0 - b.0).abs() < 0.5 { 0.0 } else { w },
+            });
+        }
+    } else if !curved && !matches!(path.fill_mode(), Ok(PdfPathFillMode::None)) {
+        // A filled shape thinner than 2pt is a line.
+        let xs = segs.iter().flat_map(|(a, b)| [a.0, b.0]);
+        let ys = segs.iter().flat_map(|(a, b)| [a.1, b.1]);
+        let (x0, x1) = xs.fold((f32::MAX, f32::MIN), |(l, h), v| (l.min(v), h.max(v)));
+        let (y0, y1) = ys.fold((f32::MAX, f32::MIN), |(l, h), v| (l.min(v), h.max(v)));
+        let (w, h) = (x1 - x0, y1 - y0);
+        if segs.len() >= 3 && w.min(h) < 2.0 && w.max(h) >= MIN_RULE {
+            out.push(Rule { x0, y0, x1, y1 });
+        }
+    }
+}
+
 fn push_image(obj: &PdfPageObject, ph: f32, out: &mut Vec<PageImage>) {
     if let Some(form) = obj.as_x_object_form_object() {
         for i in 0..form.len() {
@@ -443,12 +530,18 @@ fn extract(doc: &PdfDocument) -> Result<Vec<PageContent>, String> {
                         || name.contains("courier"),
                     generated: ch.is_generated().unwrap_or(false),
                     hyphen: ch.is_hyphen().unwrap_or(false),
+                    font: family_of(&ch.font_name()),
+                    color: ch
+                        .fill_color()
+                        .map(|c| [c.red(), c.green(), c.blue()])
+                        .unwrap_or([0, 0, 0]),
                 });
             }
         }
         for obj in page.objects().iter() {
             push_image(&obj, ph, &mut pc.images);
             push_space(&obj, ph, &mut pc.spaces);
+            push_rules(&obj, ph, &[], &mut pc.rules);
         }
         for link in page.links().iter() {
             let Some(PdfAction::Uri(a)) = link.action() else {

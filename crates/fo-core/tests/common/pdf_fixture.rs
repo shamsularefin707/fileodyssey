@@ -108,3 +108,46 @@ pub fn scanned_pdf() -> Vec<u8> {
     pdf.stream(content, &c.finish());
     pdf.finish()
 }
+
+/// One A4 page: a 2×2 grid stroked as a rectangle (x 100–300, y 500–600 from
+/// the bottom) plus a middle horizontal and vertical line, a thin filled
+/// rectangle at y 450 (a rule drawn as a fill), a large filled box (not a
+/// rule), and the words "Red words" in red Times-Roman at y 700.
+pub fn ruled_pdf() -> Vec<u8> {
+    let mut pdf = Pdf::new();
+    let (cat, tree, page, content, font) = (
+        Ref::new(1),
+        Ref::new(2),
+        Ref::new(3),
+        Ref::new(4),
+        Ref::new(5),
+    );
+    pdf.catalog(cat).pages(tree);
+    pdf.pages(tree).kids([page]).count(1);
+    let mut p = pdf.page(page);
+    p.media_box(Rect::new(0.0, 0.0, 595.0, 842.0))
+        .parent(tree)
+        .contents(content);
+    p.resources().fonts().pair(Name(b"FT"), font);
+    p.finish();
+    pdf.type1_font(font).base_font(Name(b"Times-Roman"));
+    let mut c = Content::new();
+    c.set_line_width(0.5)
+        .rect(100.0, 500.0, 200.0, 100.0)
+        .stroke()
+        .move_to(100.0, 550.0)
+        .line_to(300.0, 550.0)
+        .move_to(200.0, 500.0)
+        .line_to(200.0, 600.0)
+        .stroke();
+    c.rect(100.0, 449.6, 200.0, 0.8).fill_nonzero();
+    c.rect(350.0, 300.0, 150.0, 100.0).fill_nonzero();
+    c.set_fill_rgb(1.0, 0.0, 0.0)
+        .begin_text()
+        .set_font(Name(b"FT"), 12.0)
+        .next_line(72.0, 700.0)
+        .show(Str(b"Red words"))
+        .end_text();
+    pdf.stream(content, &c.finish());
+    pdf.finish()
+}
