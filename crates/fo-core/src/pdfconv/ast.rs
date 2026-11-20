@@ -69,20 +69,7 @@ pub fn inlines(lines: &[Line]) -> Vec<Value> {
 
 /// As `inlines`; spans marking a footnote become a Note holding it.
 fn inlines_in(lines: &[Line], notes: &[Vec<Line>]) -> Vec<Value> {
-    let mut spans: Vec<Span> = Vec::new();
-    for (i, l) in lines.iter().enumerate() {
-        let mut ls = l.spans.clone();
-        if l.hyphen_end {
-            if let Some(last) = ls.last_mut() {
-                last.text = strip_hyphen(&last.text).to_owned();
-            }
-        } else if i + 1 < lines.len() {
-            if let Some(last) = ls.last_mut() {
-                last.text.push(' ');
-            }
-        }
-        spans.extend(ls);
-    }
+    let spans = joined_spans(lines);
     let mut out = Vec::new();
     let mut i = 0;
     while i < spans.len() {
@@ -130,6 +117,26 @@ fn inlines_in(lines: &[Line], notes: &[Vec<Line>]) -> Vec<Value> {
         out.pop();
     }
     out
+}
+
+/// A block's spans with its lines joined: a space between lines, and
+/// hyphenated words rejoined.
+pub fn joined_spans(lines: &[Line]) -> Vec<Span> {
+    let mut spans: Vec<Span> = Vec::new();
+    for (i, l) in lines.iter().enumerate() {
+        let mut ls = l.spans.clone();
+        if l.hyphen_end {
+            if let Some(last) = ls.last_mut() {
+                last.text = strip_hyphen(&last.text).to_owned();
+            }
+        } else if i + 1 < lines.len() {
+            if let Some(last) = ls.last_mut() {
+                last.text.push(' ');
+            }
+        }
+        spans.extend(ls);
+    }
+    spans
 }
 
 /// A Pandoc table: header rows in the head, the rest in one body; cells

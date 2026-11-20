@@ -1,10 +1,11 @@
 //! `pdf.convert`: rebuild a digital PDF as an editable document.
 
 use super::ast::{image_name, to_ast};
+use super::docx::{write_docx, PageSetup, Picture};
 use super::layout::{reconstruct, Block, BlockKind, Doc};
 use crate::pandoc::ast::{normalise_words, Stats};
 use crate::pandoc::formats::writer_for;
-use crate::pandoc::tool::{DocConvert, Source};
+use crate::pandoc::tool::{DocConvert, Source, Written};
 use crate::pandoc::PandocEngine;
 use crate::reader::pdf::engine;
 use crate::tool::{Ctx, Tool, ToolError, ToolOutput};
@@ -142,10 +143,16 @@ impl Tool for PdfConvert {
             .flat_map(|p| &p.glyphs)
             .any(|g| !g.generated && !g.text.trim().is_empty());
         let mut warnings = Vec::new();
-        let (doc, pictures): (Doc, Vec<Vec<u8>>) = if has_text {
+        let (doc, pictures): (Doc, Vec<Picture>) = if has_text {
             let pics = pages
                 .iter()
-                .flat_map(|p| p.images.iter().map(|i| i.png.clone()))
+                .flat_map(|p| {
+                    p.images.iter().map(|i| Picture {
+                        png: i.png.clone(),
+                        width: i.x1 - i.x0,
+                        height: i.y1 - i.y0,
+                    })
+                })
                 .collect();
             (reconstruct(&pages), pics)
         } else {
@@ -158,7 +165,12 @@ impl Tool for PdfConvert {
                     pdf.close(id);
                     return Err(ToolError::Cancelled);
                 }
-                pics.push(pdf.render(id, i, SCAN_WIDTH).map_err(failed)?);
+                let pg = &pages[i as usize];
+                pics.push(Picture {
+                    png: pdf.render(id, i, SCAN_WIDTH).map_err(failed)?,
+                    width: pg.width,
+                    height: pg.height,
+                });
             }
             pdf.close(id);
             let blocks = (0..pics.len())
@@ -220,33 +232,56 @@ impl Tool for PdfConvert {
         }
         (ctx.progress)(0.45);
 
-        let api = self.doc.ast(ctx, "markdown", "probe.md", Vec::new())?;
-        let ast = to_ast(&doc, &api["pandoc-api-version"]);
-        let mut files = vec![(
-            "input.json".to_string(),
-            serde_json::to_vec(&ast).unwrap_or_default(),
-        )];
-        files.extend(
-            pictures
-                .into_iter()
-                .enumerate()
-                .map(|(i, b)| (image_name(i), b)),
-        );
-        let mut out = self.doc.write_and_check(
-            ctx,
-            Source {
-                from: "json",
-                in_name: "input.json",
-                files,
+        let mut out = if target == "docx" {
+            // Written directly so fonts, sizes and colours are kept.
+            let setup = PageSetup {
+                width: pages.first().map_or(595.0, |p| p.width),
+                height: pages.first().map_or(842.0, |p| p.height),
+            };
+            let bytes = write_docx(&doc, &pictures, &setup).map_err(failed)?;
+            self.doc.check_output(
+                ctx,
+                Written {
+                    target,
+                    flavour,
+                    out_name: "out.docx",
+                    out_bytes: bytes,
+                    media: Vec::new(),
+                    stem: &stem,
+                },
                 before,
-                has_title: false,
-                stem: &stem,
-                known_structure: false,
-            },
-            target,
-            flavour,
-            to,
-        )?;
+                false,
+                Vec::new(),
+            )?
+        } else {
+            let api = self.doc.ast(ctx, "markdown", "probe.md", Vec::new())?;
+            let ast = to_ast(&doc, &api["pandoc-api-version"]);
+            let mut files = vec![(
+                "input.json".to_string(),
+                serde_json::to_vec(&ast).unwrap_or_default(),
+            )];
+            files.extend(
+                pictures
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, p)| (image_name(i), p.png)),
+            );
+            self.doc.write_and_check(
+                ctx,
+                Source {
+                    from: "json",
+                    in_name: "input.json",
+                    files,
+                    before,
+                    has_title: false,
+                    stem: &stem,
+                    known_structure: false,
+                },
+                target,
+                flavour,
+                to,
+            )?
+        };
         warnings.append(&mut out.report.warnings);
         out.report.warnings = warnings;
         Ok(out)

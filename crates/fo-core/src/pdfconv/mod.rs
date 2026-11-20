@@ -110,6 +110,7 @@ pub struct PageContent {
     pub rules: Vec<Rule>,
 }
 pub mod ast;
+pub mod docx;
 pub mod layout;
 pub mod notes;
 pub mod table;

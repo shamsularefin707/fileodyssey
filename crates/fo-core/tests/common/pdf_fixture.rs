@@ -237,6 +237,7 @@ pub fn structured_pdf() -> Vec<u8> {
                     line(&mut c, font, 11.0, xs[k] + 5.0, ys[r] - 15.0, t);
                 }
             }
+            c.set_fill_rgb(0.0, 0.2, 0.6); // dark blue (0, 51, 153)
             line(
                 &mut c,
                 b"R",
@@ -245,6 +246,7 @@ pub fn structured_pdf() -> Vec<u8> {
                 490.0,
                 "The level fell slowly through the spring.",
             );
+            c.set_fill_rgb(0.0, 0.0, 0.0);
             line(
                 &mut c,
                 b"R",

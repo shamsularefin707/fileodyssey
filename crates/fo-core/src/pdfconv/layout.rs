@@ -750,6 +750,26 @@ pub struct Doc {
     pub set_aside: Vec<String>,
 }
 
+/// The body text's font family and size: the most common by character
+/// count over paragraphs and list items.
+pub fn body_style(doc: &Doc) -> (String, f32) {
+    let mut count: std::collections::HashMap<(String, i32), usize> = Default::default();
+    for b in &doc.blocks {
+        if matches!(b.kind, BlockKind::Para | BlockKind::ListItem { .. }) {
+            for s in b.lines.iter().flat_map(|l| &l.spans) {
+                *count
+                    .entry((s.font.clone(), (s.size * 2.0).round() as i32))
+                    .or_default() += s.text.chars().count();
+            }
+        }
+    }
+    count
+        .into_iter()
+        .max_by_key(|(_, n)| *n)
+        .map(|((f, s), _)| (f, s as f32 / 2.0))
+        .unwrap_or((String::new(), 11.0))
+}
+
 /// The body blocks only (see `reconstruct`).
 pub fn layout(pages: &[PageContent]) -> Vec<Block> {
     reconstruct(pages).blocks

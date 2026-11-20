@@ -17,6 +17,18 @@ const MAX_RESOURCES_TOTAL: u64 = 200 * 1024 * 1024;
 
 /// What `write_and_check` converts: Pandoc input files and what the source
 /// contains, measured beforehand.
+/// A result written to bytes, ready to be checked.
+pub struct Written<'a> {
+    pub target: &'a str,
+    /// Markdown flavour (only for `md`).
+    pub flavour: &'a str,
+    pub out_name: &'a str,
+    pub out_bytes: Vec<u8>,
+    /// Images written beside it (`media/...`).
+    pub media: Vec<(String, Vec<u8>)>,
+    pub stem: &'a str,
+}
+
 pub struct Source<'a> {
     pub from: &'a str,
     pub in_name: &'a str,
@@ -123,6 +135,41 @@ impl DocConvert {
             .filter(|(n, _)| n.starts_with("media/"))
             .cloned()
             .collect();
+        self.check_output(
+            ctx,
+            Written {
+                target,
+                flavour,
+                out_name: &out_name,
+                out_bytes,
+                media,
+                stem,
+            },
+            before,
+            known_structure,
+            converted.warnings,
+        )
+    }
+
+    /// Reads a written result back and reports what survived, then puts it
+    /// (with any images beside it) in the work folder.
+    pub fn check_output(
+        &self,
+        ctx: &Ctx,
+        w: Written<'_>,
+        before: Stats,
+        known_structure: bool,
+        tool_warnings: Vec<String>,
+    ) -> Result<ToolOutput, ToolError> {
+        let Written {
+            target,
+            flavour,
+            out_name,
+            out_bytes,
+            media,
+            stem,
+        } = w;
+        let out_name = out_name.to_owned();
         (ctx.progress)(0.7);
 
         // 3. What survived.
@@ -172,7 +219,7 @@ impl DocConvert {
             }
         }
         let mut seen = std::collections::HashSet::new();
-        for w in converted.warnings {
+        for w in tool_warnings {
             if rep.warnings.len() < 10 && seen.insert(w.clone()) {
                 rep.warnings.push(w);
             }
