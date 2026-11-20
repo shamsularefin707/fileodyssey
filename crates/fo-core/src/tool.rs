@@ -59,6 +59,15 @@ pub trait Tool: Send + Sync {
         false
     }
 
+    /// Word used in output names: `name (label).ext`.
+    fn output_label(&self) -> &'static str {
+        if self.combines() {
+            "combined"
+        } else {
+            "converted"
+        }
+    }
+
     fn run_many(&self, _inputs: &[PathBuf], _ctx: &Ctx) -> Result<ToolOutput, ToolError> {
         Err(ToolError::Failed(
             "This tool works on one file at a time".into(),

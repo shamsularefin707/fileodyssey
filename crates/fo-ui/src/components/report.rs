@@ -15,7 +15,7 @@ pub fn ReportDrawer() -> impl IntoView {
         >
             {move || ctx.report.get().map(|(name, r)| {
                 let sim = r.text_similarity.map(|s| format!("{:.1}%", s * 100.0));
-                let empty = r.warnings.is_empty() && r.metrics.iter().all(|m| m.after >= m.before);
+                let empty = r.verdict() == fo_types::Verdict::Exact;
                 view! {
                     <header class="drawer-head">
                         <h2>{REPORT_TITLE}</h2>
@@ -26,7 +26,7 @@ pub fn ReportDrawer() -> impl IntoView {
                         <thead><tr><th scope="col"></th><th scope="col">{REPORT_BEFORE}</th><th scope="col">{REPORT_AFTER}</th></tr></thead>
                         <tbody>
                             {r.metrics.iter().map(|m| {
-                                let lost = m.after < m.before;
+                                let lost = !m.informational && m.after < m.before;
                                 view! { <tr class:lost=lost><th scope="row">{m.name.clone()}</th><td>{m.before}</td><td>{m.after}</td></tr> }
                             }).collect_view()}
                         </tbody>

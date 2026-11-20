@@ -72,10 +72,39 @@ impl Tool for PanicTool {
     }
 }
 
+/// Produces a folder with a nested file, like an archive extractor.
+struct FolderTool;
+
+impl Tool for FolderTool {
+    fn info(&self) -> ToolInfo {
+        ToolInfo {
+            id: "test.folder".into(),
+            ..TestTool.info()
+        }
+    }
+    fn accepts(&self, _: &FileKind) -> bool {
+        true
+    }
+    fn output_label(&self) -> &'static str {
+        "extracted"
+    }
+    fn run(&self, _: &Path, ctx: &Ctx) -> Result<ToolOutput, ToolError> {
+        let dir = ctx.work_dir.join("out");
+        std::fs::create_dir_all(dir.join("sub"))?;
+        std::fs::write(dir.join("sub").join("deep.txt"), "deep")?;
+        std::fs::write(dir.join("top.txt"), "top")?;
+        Ok(ToolOutput {
+            files: vec![(dir, String::new())],
+            report: FidelityReport::default(),
+        })
+    }
+}
+
 fn setup() -> (TempDir, Runner) {
     let mut reg = Registry::new();
     reg.register(Arc::new(TestTool));
     reg.register(Arc::new(PanicTool));
+    reg.register(Arc::new(FolderTool));
     (TempDir::new().unwrap(), Runner::new(Arc::new(reg), 2))
 }
 
@@ -323,4 +352,29 @@ fn concurrent_placement_never_overwrites() {
         contents.sort();
         assert_eq!(contents, (0..8).map(|i| i.to_string()).collect::<Vec<_>>());
     }
+}
+
+#[test]
+fn directory_output_is_placed_under_a_free_name() {
+    let (d, runner) = setup();
+    let input = d.path().join("x.zip");
+    std::fs::write(&input, "x").unwrap();
+    std::fs::create_dir(d.path().join("x (extracted)")).unwrap();
+    let mut r = req(&input, d.path(), serde_json::json!({}));
+    r.tool_id = "test.folder".into();
+    let evs = run(&runner, r, None);
+    let JobStatus::Done { outputs, .. } = &evs.last().unwrap().status else {
+        panic!("{evs:?}")
+    };
+    let out = d.path().join("x (extracted 2)");
+    assert_eq!(outputs, &vec![out.to_string_lossy().into_owned()]);
+    assert_eq!(
+        std::fs::read_to_string(out.join("sub").join("deep.txt")).unwrap(),
+        "deep"
+    );
+    assert_eq!(std::fs::read_to_string(out.join("top.txt")).unwrap(), "top");
+    assert_eq!(
+        entries(d.path()),
+        vec!["x (extracted 2)", "x (extracted)", "x.zip"]
+    );
 }

@@ -68,14 +68,32 @@ pub fn failed(msg: &str) -> String {
     format!("Didn't finish: {msg}")
 }
 
-pub fn combine_title(n: usize) -> String {
-    format!("Combine {n} images into one PDF")
+pub const FORMAT: &str = "Format";
+
+/// Heading for a combining tool's bar.
+pub fn combine_title(tool_id: &str, n: usize) -> String {
+    match tool_id {
+        "img.to_pdf" => format!("Combine {n} images into one PDF"),
+        "arc.create" if n == 1 => "Put 1 file in an archive".to_owned(),
+        "arc.create" => format!("Put {n} files in an archive"),
+        _ => format!("Combine {n} files"),
+    }
+}
+
+/// The bar's button: says what happens.
+pub fn combine_action(tool_id: &str) -> &'static str {
+    match tool_id {
+        "arc.create" => "Create archive",
+        _ => COMBINE_RUN,
+    }
 }
 
 /// How a target extension is shown in the "to" menu.
 pub fn target_label(target: &str) -> String {
     match target {
         "same" => SAME_FORMAT.to_owned(),
+        "folder" => "Folder".to_owned(),
+        "7z" | "tar" | "tar.gz" | "tar.xz" | "tar.zst" | "zip" => format!(".{target}"),
         "txt" => TEXT.to_owned(),
         "jpg" => "JPEG".to_owned(),
         "jxl" => "JPEG XL".to_owned(),

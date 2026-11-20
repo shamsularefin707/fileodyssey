@@ -178,7 +178,7 @@ fn run_one(registry: &Registry, w: &Work) -> JobStatus {
     // A tool that panics (e.g. a decoder on a malformed file) must not kill
     // the worker or leave the job hanging.
     let paths: Vec<PathBuf> = w.inputs.iter().map(PathBuf::from).collect();
-    let label = if w.combine { "combined" } else { "converted" };
+    let label = tool.output_label();
     let result = catch_unwind(AssertUnwindSafe(|| {
         if w.combine {
             tool.run_many(&paths, &ctx)
@@ -235,6 +235,9 @@ pub fn place_output_with(
     ext: &str,
     label: &str,
 ) -> std::io::Result<String> {
+    if src.is_dir() {
+        return place_dir(src, input, out_dir, label);
+    }
     loop {
         let dest = output_path_with(input, out_dir, ext, label);
         match std::fs::hard_link(src, &dest) {
@@ -261,6 +264,32 @@ pub fn place_output_with(
             },
         }
     }
+}
+
+/// Claim a free folder name with `create_dir` (atomic: fails if it exists),
+/// then move the produced folder's contents into it.
+fn place_dir(src: &Path, input: &Path, out_dir: &Path, label: &str) -> std::io::Result<String> {
+    let dest = loop {
+        let dest = output_path_with(input, out_dir, "", label);
+        match std::fs::create_dir(&dest) {
+            Ok(()) => break dest,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
+        }
+    };
+    let moved = (|| {
+        for entry in std::fs::read_dir(src)? {
+            let entry = entry?;
+            std::fs::rename(entry.path(), dest.join(entry.file_name()))?;
+        }
+        std::fs::remove_dir(src)
+    })();
+    if let Err(e) = moved {
+        // Don't leave a half-filled "(extracted)" folder behind.
+        let _ = std::fs::remove_dir_all(&dest);
+        return Err(e);
+    }
+    Ok(dest.to_string_lossy().into_owned())
 }
 
 fn failed(message: &str) -> JobStatus {

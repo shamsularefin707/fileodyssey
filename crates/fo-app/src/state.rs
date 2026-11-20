@@ -15,6 +15,11 @@ impl AppState {
         for tool in fo_core::image::tools::image_tools() {
             registry.register(tool);
         }
+        for tool in fo_core::archive::tools::archive_tools() {
+            registry.register(tool);
+        }
+        registry.register(fo_core::pdfopt::tool());
+        registry.register(fo_core::office::tool());
         let registry = Arc::new(registry);
         let workers = std::thread::available_parallelism()
             .map(|n| n.get().saturating_sub(1))
@@ -53,6 +58,19 @@ impl Placed {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn app_state_registers_m3_tools() {
+        let s = super::AppState::new();
+        for id in [
+            "arc.extract",
+            "arc.create",
+            "pdf.compress",
+            "office.compress",
+        ] {
+            assert!(s.registry.get(id).is_some(), "{id} missing");
+        }
+    }
+
     #[test]
     fn app_state_registers_image_tools() {
         let s = super::AppState::new();

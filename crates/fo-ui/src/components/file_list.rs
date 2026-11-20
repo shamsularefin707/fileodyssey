@@ -208,7 +208,7 @@ fn OptionsPanel(
     }
 }
 
-fn control(
+pub(crate) fn control(
     o: OptionSpec,
     vals: &serde_json::Value,
     set: impl Fn(String, serde_json::Value) + Clone + 'static,

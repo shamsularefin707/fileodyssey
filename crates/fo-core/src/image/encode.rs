@@ -84,6 +84,7 @@ impl<'a> Notes<'a> {
             name: name.into(),
             before,
             after,
+            informational: false,
         };
         FidelityReport {
             metrics: vec![

@@ -115,6 +115,7 @@ impl Tool for ImagesToPdf {
                     name: s("Pages"),
                     before: n,
                     after: n,
+                    informational: false,
                 }],
                 text_similarity: None,
                 warnings,
@@ -403,6 +404,7 @@ impl Tool for ImageTool {
                     name: s("File size (KB)"),
                     before,
                     after,
+                    informational: true,
                 });
                 if after >= before {
                     r.warnings
@@ -426,6 +428,7 @@ impl Tool for ImageTool {
                         name: s("Codes found"),
                         before: 0,
                         after: codes.len() as u64,
+                        informational: false,
                     }],
                     text_similarity: None,
                     warnings,

@@ -197,3 +197,44 @@ fn merged_options_overlay_user_values_on_defaults() {
     assert_eq!(v["quality"], 40);
     assert_eq!(v["mode"], "fit");
 }
+
+fn tool_info(id: &str, category: Category, combines: bool) -> ToolInfo {
+    ToolInfo {
+        id: id.into(),
+        label: id.into(),
+        category,
+        targets: vec![],
+        best_effort: false,
+        platforms: vec![Platform::Desktop],
+        options: vec![],
+        combines,
+    }
+}
+
+#[test]
+fn combine_candidates_lists_archive_for_any_file_on_compress_tab() {
+    let archive = tool_info("arc.create", Category::Compress, true);
+    let files = vec![(
+        "/a.bin".to_string(),
+        vec![archive.clone(), tool_info("x.y", Category::Compress, false)],
+    )];
+    let got = fo_ui::state::combine_candidates(&files, Category::Compress);
+    assert_eq!(got.len(), 1);
+    assert_eq!(got[0].0.id, "arc.create");
+    assert_eq!(got[0].1, vec!["/a.bin".to_string()]);
+    assert!(fo_ui::state::combine_candidates(&files, Category::Images).is_empty());
+}
+
+#[test]
+fn combine_candidates_needs_two_images_for_pdf() {
+    let pdf = tool_info("img.to_pdf", Category::Images, true);
+    let one = vec![("/a.png".to_string(), vec![pdf.clone()])];
+    assert!(fo_ui::state::combine_candidates(&one, Category::Images).is_empty());
+    let two = vec![
+        ("/a.png".to_string(), vec![pdf.clone()]),
+        ("/b.txt".to_string(), vec![]),
+        ("/c.jpg".to_string(), vec![pdf]),
+    ];
+    let got = fo_ui::state::combine_candidates(&two, Category::Images);
+    assert_eq!(got[0].1, vec!["/a.png".to_string(), "/c.jpg".to_string()]);
+}
