@@ -283,3 +283,25 @@ fn markup_sources_by_extension() {
         assert_eq!(detect_file(&p).unwrap().kind, kind, "{name}");
     }
 }
+
+#[test]
+fn ods_and_odp_detected_by_mimetype_entry() {
+    let d = TempDir::new().unwrap();
+    let s = zip_with(
+        &d,
+        "sheet",
+        &[("mimetype", "application/vnd.oasis.opendocument.spreadsheet")],
+    );
+    assert_eq!(detect_kind(&s).unwrap(), FileKind::Ods);
+    let p = zip_with(
+        &d,
+        "deck",
+        &[(
+            "mimetype",
+            "application/vnd.oasis.opendocument.presentation",
+        )],
+    );
+    assert_eq!(detect_kind(&p).unwrap(), FileKind::Odp);
+    assert_eq!(FileKind::Ods.label(), "OpenDocument spreadsheet");
+    assert_eq!(FileKind::Odp.label(), "OpenDocument presentation");
+}

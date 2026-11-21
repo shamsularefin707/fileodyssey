@@ -188,7 +188,13 @@ impl Tool for OfficeCompress {
     fn accepts(&self, kind: &FileKind) -> bool {
         matches!(
             kind,
-            FileKind::Docx | FileKind::Pptx | FileKind::Xlsx | FileKind::Odt | FileKind::Epub
+            FileKind::Docx
+                | FileKind::Pptx
+                | FileKind::Xlsx
+                | FileKind::Odt
+                | FileKind::Ods
+                | FileKind::Odp
+                | FileKind::Epub
         )
     }
 
@@ -202,6 +208,8 @@ impl Tool for OfficeCompress {
             FileKind::Pptx => "pptx",
             FileKind::Xlsx => "xlsx",
             FileKind::Odt => "odt",
+            FileKind::Ods => "ods",
+            FileKind::Odp => "odp",
             FileKind::Epub => "epub",
             _ => {
                 return Err(ToolError::Failed(

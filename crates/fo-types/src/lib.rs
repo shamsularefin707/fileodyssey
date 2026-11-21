@@ -74,6 +74,8 @@ pub enum FileKind {
     Pdf,
     Docx,
     Odt,
+    Ods,
+    Odp,
     Rtf,
     Epub,
     Markdown,
@@ -118,6 +120,8 @@ impl FileKind {
             FileKind::Doc => "Word 97–2003 document",
             FileKind::Xls => "Excel 97–2003 workbook",
             FileKind::Ppt => "PowerPoint 97–2003 deck",
+            FileKind::Ods => "OpenDocument spreadsheet",
+            FileKind::Odp => "OpenDocument presentation",
             FileKind::Image(f) => match f {
                 ImageFormat::Png => "PNG image",
                 ImageFormat::Jpeg => "JPEG image",
