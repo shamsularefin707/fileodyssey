@@ -1860,6 +1860,7 @@ dependencies = [
  "jpeg-encoder",
  "jxl-oxide",
  "kamadak-exif",
+ "libc",
  "lopdf",
  "lzma-rust2",
  "miniz_oxide 0.8.9",

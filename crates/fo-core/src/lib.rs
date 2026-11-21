@@ -2,6 +2,7 @@ pub mod archive;
 pub mod data;
 pub mod detect;
 pub mod image;
+pub mod libre;
 pub mod naming;
 pub mod office;
 pub mod pandoc;
