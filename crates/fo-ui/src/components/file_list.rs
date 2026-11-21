@@ -15,6 +15,12 @@ struct StartArgs {
 #[derive(Serialize)]
 struct NoArgs {}
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ToolArg {
+    tool_id: String,
+}
+
 fn human_size(bytes: u64) -> String {
     match bytes {
         b if b >= 1 << 30 => format!("{:.1} GB", b as f64 / (1u64 << 30) as f64),
@@ -34,8 +40,12 @@ fn tools_in_tab(ctx: AppCtx, e: &Entry) -> Vec<ToolInfo> {
 }
 
 /// The selected "tool|target" for a file, defaulting to the first option.
+/// Tools that can't run yet (`needs`) are never chosen.
 fn choice_for(ctx: AppCtx, e: &Entry) -> Option<(ToolInfo, Option<String>)> {
-    let tools = tools_in_tab(ctx, e);
+    let tools: Vec<ToolInfo> = tools_in_tab(ctx, e)
+        .into_iter()
+        .filter(|t| t.needs.is_none())
+        .collect();
     let chosen = ctx.choices.get().get(&e.file.path).cloned();
     let parse = |s: &str| {
         let (id, target) = s.split_once('|')?;
@@ -68,12 +78,15 @@ fn Row(entry: Entry) -> impl IntoView {
                     .into_iter()
                     .map(|target| {
                         let value = format!("{}|{}", t.id, target);
-                        let label = if target.is_empty() {
+                        let mut label = if target.is_empty() {
                             t.label.clone()
                         } else {
                             target_label(&target)
                         };
-                        (value, label)
+                        if let Some(n) = &t.needs {
+                            label = format!("{label} — {NEEDS} {}", n.name);
+                        }
+                        (value, label, t.needs.is_some())
                     })
                     .collect::<Vec<_>>();
                 (t.label.clone(), items)
@@ -114,12 +127,30 @@ fn Row(entry: Entry) -> impl IntoView {
             </div>
             <div class="file-action">
                 <Show
-                    when=move || !options().is_empty()
+                    when=move || options().iter().any(|(_, _, off)| !off)
                     fallback={
                         let path = path.clone();
                         let kind = entry.file.kind;
                         move || {
                             let path = path.clone();
+                            // Every tool here needs something first: say what.
+                            let waiting = tools_in_tab(ctx, &e.get_value())
+                                .into_iter()
+                                .find_map(|t| t.needs.clone().map(|n| (t.id, n)));
+                            if let Some((id, n)) = waiting {
+                                return view! {
+                                    <span class="needs">
+                                        <span class="muted">{n.message.clone()}</span>
+                                        " "
+                                        <button class="link" on:click=move |_| {
+                                            let id = id.clone();
+                                            spawn_local(async move {
+                                                let _: Result<(), String> = invoke("open_tool_link", &ToolArg { tool_id: id }).await;
+                                            });
+                                        }>{format!("{GET} {}", n.name)}</button>
+                                    </span>
+                                }.into_any();
+                            }
                             if ctx.tab.get() != fo_types::Category::Read {
                                 view! { <span class="muted">{NO_TOOLS}</span> }.into_any()
                             } else if fo_ui::reading::readable(&kind) {
@@ -146,9 +177,9 @@ fn Row(entry: Entry) -> impl IntoView {
                                 let gs = groups();
                                 let single = gs.len() == 1;
                                 gs.into_iter().map(|(group, items)| {
-                                    let opts = items.into_iter().map(|(v, l)| {
+                                    let opts = items.into_iter().map(|(v, l, off)| {
                                         let sel = v == selected_value();
-                                        view! { <option value=v selected=sel>{l}</option> }
+                                        view! { <option value=v selected=sel disabled=off>{l}</option> }
                                     }).collect_view();
                                     if single {
                                         opts.into_any()

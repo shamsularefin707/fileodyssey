@@ -199,6 +199,8 @@ pub struct ToolInfo {
 /// What a tool needs before it can run, and where to get it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Needs {
+    /// What's needed, e.g. "LibreOffice".
+    pub name: String,
     /// Short message, e.g. "Install LibreOffice to enable".
     pub message: String,
     /// Where to get it.

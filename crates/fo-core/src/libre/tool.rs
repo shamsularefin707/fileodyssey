@@ -41,6 +41,7 @@ impl OfficeConvert {
 
     fn needs() -> Needs {
         Needs {
+            name: "LibreOffice".into(),
             message: "Install LibreOffice to enable".into(),
             url: DOWNLOAD_URL.into(),
         }

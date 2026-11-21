@@ -111,6 +111,7 @@ fn option_spec_serde_roundtrip() {
         ],
         combines: true,
         needs: Some(Needs {
+            name: "LibreOffice".into(),
             message: "Install LibreOffice to enable".into(),
             url: "https://www.libreoffice.org/download/".into(),
         }),
