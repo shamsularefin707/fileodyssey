@@ -135,6 +135,10 @@ pub const DISMISS: &str = "Dismiss";
 pub const DETAILS: &str = "Details";
 pub const SIZE: &str = "Size";
 pub const NO_CAMERA_DETAILS: &str = "No camera details in this image.";
+/// Suffix on a target that can't run yet: "PDF — needs LibreOffice".
+pub const NEEDS: &str = "needs";
+/// Link that opens where to get what a tool needs: "Get LibreOffice".
+pub const GET: &str = "Get";
 
 pub fn match_count(i: usize, n: usize) -> String {
     format!("{} of {n}", i + 1)

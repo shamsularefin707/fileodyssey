@@ -155,6 +155,29 @@ pub fn open_path(app: AppHandle, state: State<'_, AppState>, path: String) -> Re
         .map_err(|e| e.to_string())
 }
 
+/// Where to get what a tool needs, from the tool itself: the webview names
+/// a tool, never a URL, so it can't open anything else this way.
+pub fn needs_url(registry: &fo_core::registry::Registry, tool_id: &str) -> Result<String, String> {
+    registry
+        .get(tool_id)
+        .and_then(|t| t.info().needs)
+        .map(|n| n.url)
+        .ok_or_else(|| "This tool doesn't need anything installed".into())
+}
+
+/// Opens where to get what a tool needs (e.g. LibreOffice's download page).
+#[tauri::command]
+pub fn open_tool_link(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    tool_id: String,
+) -> Result<(), String> {
+    let url = needs_url(&state.registry, &tool_id)?;
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn reveal_path(app: AppHandle, state: State<'_, AppState>, path: String) -> Result<(), String> {
     check_openable(&state.placed, &path)?;
@@ -166,6 +189,25 @@ pub fn reveal_path(app: AppHandle, state: State<'_, AppState>, path: String) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tool_links_come_only_from_tools_that_need_something() {
+        let mut reg = fo_core::registry::Registry::new();
+        let pandoc = std::sync::Arc::new(crate::pandoc::WebviewPandoc::default());
+        reg.register(std::sync::Arc::new(
+            fo_core::libre::tool::OfficeConvert::new(pandoc.clone())
+                .with_locator(std::sync::Arc::new(|| None)),
+        ));
+        reg.register(std::sync::Arc::new(fo_core::pandoc::tool::DocConvert::new(
+            pandoc,
+        )));
+        assert_eq!(
+            needs_url(&reg, "office.convert").unwrap(),
+            fo_core::libre::DOWNLOAD_URL
+        );
+        assert!(needs_url(&reg, "doc.convert").is_err());
+        assert!(needs_url(&reg, "https://example.org").is_err());
+    }
     use fo_types::{FileKind, Platform};
     use tempfile::TempDir;
 

@@ -141,6 +141,8 @@ fn from_zip(path: &Path) -> FileKind {
         match m {
             "application/epub+zip" => return FileKind::Epub,
             "application/vnd.oasis.opendocument.text" => return FileKind::Odt,
+            "application/vnd.oasis.opendocument.spreadsheet" => return FileKind::Ods,
+            "application/vnd.oasis.opendocument.presentation" => return FileKind::Odp,
             _ => {}
         }
     }

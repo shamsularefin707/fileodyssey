@@ -159,6 +159,7 @@ impl Tool for DataConvert {
             platforms: vec![Platform::Desktop, Platform::Android],
             options: vec![],
             combines: false,
+            needs: None,
         }
     }
 

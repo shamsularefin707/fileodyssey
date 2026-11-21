@@ -43,6 +43,7 @@ impl Tool for Create {
                 show_if: None,
             }],
             combines: true,
+            needs: None,
         }
     }
 
@@ -133,6 +134,7 @@ impl Tool for Extract {
             platforms: vec![Platform::Desktop, Platform::Android],
             options: vec![],
             combines: false,
+            needs: None,
         }
     }
 

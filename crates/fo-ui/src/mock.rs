@@ -49,6 +49,7 @@ pub const SAMPLE_FILES: &[&str] = &[
     "/home/you/Documents/রিপোর্ট ফাইল.docx",
     "/home/you/Downloads/holiday photos.zip",
     "/home/you/Books/The long walk.epub",
+    "/home/you/Documents/committee minutes 2004.doc",
 ];
 
 fn kind_for(path: &str) -> FileKind {
@@ -57,6 +58,14 @@ fn kind_for(path: &str) -> FileKind {
         "pdf" => FileKind::Pdf,
         "md" => FileKind::Markdown,
         "docx" => FileKind::Docx,
+        "doc" => FileKind::Doc,
+        "xls" => FileKind::Xls,
+        "ppt" => FileKind::Ppt,
+        "xlsx" => FileKind::Xlsx,
+        "pptx" => FileKind::Pptx,
+        "odt" => FileKind::Odt,
+        "ods" => FileKind::Ods,
+        "odp" => FileKind::Odp,
         "epub" => FileKind::Epub,
         "png" => FileKind::Image(ImageFormat::Png),
         "gif" => FileKind::Image(ImageFormat::Gif),
@@ -85,6 +94,7 @@ fn tool(
         platforms: vec![Platform::Desktop, Platform::Android],
         options: vec![],
         combines: false,
+        needs: None,
     }
 }
 
@@ -185,7 +195,47 @@ fn tools_for(kind: FileKind) -> Vec<ToolInfo> {
     let mut tools = tools_for_kind(kind);
     tools.retain(|t| t.id != "pdf.compress");
     tools.extend(compress_tools(kind));
+    tools.extend(office_tool(kind));
     tools
+}
+
+/// LibreOffice conversions. The preview acts as if LibreOffice isn't
+/// installed (`?libreoffice=1` acts as if it is), to show both states.
+fn office_tool(kind: FileKind) -> Option<ToolInfo> {
+    let targets: &[&str] = match kind {
+        FileKind::Doc => &["docx", "odt", "rtf", "pdf"],
+        FileKind::Docx | FileKind::Odt | FileKind::Rtf => &["pdf"],
+        FileKind::Xls => &["xlsx", "ods", "csv", "pdf"],
+        FileKind::Xlsx => &["ods", "pdf"],
+        FileKind::Ods => &["xlsx", "pdf"],
+        FileKind::Ppt => &["pptx", "odp", "pdf"],
+        FileKind::Pptx => &["odp", "pdf"],
+        FileKind::Odp => &["pptx", "pdf"],
+        FileKind::Markdown
+        | FileKind::Html
+        | FileKind::Text
+        | FileKind::Latex
+        | FileKind::Rst
+        | FileKind::Org
+        | FileKind::AsciiDoc
+        | FileKind::Epub => &["pdf"],
+        _ => return None,
+    };
+    let mut t = tool(
+        "office.convert",
+        "Convert with LibreOffice",
+        Category::Convert,
+        targets,
+        false,
+    );
+    if query("libreoffice").is_none() {
+        t.needs = Some(fo_types::Needs {
+            name: "LibreOffice".into(),
+            message: "Install LibreOffice to enable".into(),
+            url: "https://www.libreoffice.org/download/download-libreoffice/".into(),
+        });
+    }
+    Some(t)
 }
 
 fn tools_for_kind(kind: FileKind) -> Vec<ToolInfo> {
@@ -500,6 +550,18 @@ pub async fn invoke(cmd: &str, args: JsValue) -> Result<JsValue, String> {
         "default_out_dir" => to_js(&"/home/you/Documents/FileOdyssey"),
         "pick_files" => to_js(&SAMPLE_FILES.to_vec()),
         "pick_folder" => to_js(&Some("/home/you/Desktop")),
+        "open_tool_link" => {
+            // Test hook: browser tests read which tool's link was opened.
+            let id: String = arg(&args, "toolId").unwrap_or_default();
+            if let Some(w) = web_sys::window() {
+                let _ = js_sys::Reflect::set(
+                    &w,
+                    &JsValue::from_str("__fo_last_link"),
+                    &JsValue::from_str(&id),
+                );
+            }
+            to_js(&())
+        }
         "start_job" => {
             let req: JobRequest = arg(&args, "req").ok_or("bad request")?;
             // Test hook: browser tests read the last request from here.

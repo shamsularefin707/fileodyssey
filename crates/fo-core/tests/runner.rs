@@ -21,6 +21,7 @@ impl Tool for TestTool {
             platforms: vec![Platform::Desktop],
             options: vec![],
             combines: false,
+            needs: None,
         }
     }
     fn accepts(&self, kind: &FileKind) -> bool {

@@ -305,6 +305,7 @@ impl Tool for PdfCompress {
             platforms: vec![Platform::Desktop, Platform::Android],
             options: vec![Preset::option_spec()],
             combines: false,
+            needs: None,
         }
     }
 
