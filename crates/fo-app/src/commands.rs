@@ -155,6 +155,15 @@ pub fn open_path(app: AppHandle, state: State<'_, AppState>, path: String) -> Re
         .map_err(|e| e.to_string())
 }
 
+/// Opens LibreOffice's download page in the browser. Takes no URL, so the
+/// webview can't open anything else through it.
+#[tauri::command]
+pub fn open_libreoffice_download(app: AppHandle) -> Result<(), String> {
+    app.opener()
+        .open_url(fo_core::libre::DOWNLOAD_URL, None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn reveal_path(app: AppHandle, state: State<'_, AppState>, path: String) -> Result<(), String> {
     check_openable(&state.placed, &path)?;

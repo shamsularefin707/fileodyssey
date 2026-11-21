@@ -190,6 +190,19 @@ pub struct ToolInfo {
     /// Turns all of a job's inputs into one output (e.g. images → one PDF).
     #[serde(default)]
     pub combines: bool,
+    /// Set when the tool can't run here yet (e.g. LibreOffice isn't
+    /// installed): the UI shows its targets disabled with this.
+    #[serde(default)]
+    pub needs: Option<Needs>,
+}
+
+/// What a tool needs before it can run, and where to get it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Needs {
+    /// Short message, e.g. "Install LibreOffice to enable".
+    pub message: String,
+    /// Where to get it.
+    pub url: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

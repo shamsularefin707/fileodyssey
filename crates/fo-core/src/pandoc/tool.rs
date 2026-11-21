@@ -69,6 +69,42 @@ impl DocConvert {
             })
     }
 
+    /// The source as a Pandoc AST, and its bytes as Pandoc gets them (text
+    /// decoded to UTF-8).
+    fn read_source(
+        &self,
+        ctx: &Ctx,
+        input: &Path,
+        kind: FileKind,
+        from: &str,
+    ) -> Result<(Value, Vec<u8>), ToolError> {
+        let raw = std::fs::read(input)?;
+        let bytes = if is_text_source(kind) {
+            decode_text(&raw).into_bytes()
+        } else {
+            raw
+        };
+        let ast = if kind == FileKind::Text {
+            let api = self.ast(ctx, "markdown", "probe.md", Vec::new())?;
+            text_ast(&String::from_utf8_lossy(&bytes), &api["pandoc-api-version"])
+        } else {
+            self.ast(ctx, from, &format!("input.{}", ext_of(kind)), bytes.clone())?
+        };
+        Ok((ast, bytes))
+    }
+
+    /// What a document Pandoc can read holds (words, headings, tables…).
+    pub fn source_stats(
+        &self,
+        ctx: &Ctx,
+        input: &Path,
+        kind: FileKind,
+    ) -> Result<Stats, ToolError> {
+        let from = reader_for(kind)
+            .ok_or_else(|| ToolError::Failed("This kind of file can't be read".into()))?;
+        Ok(stats(&self.read_source(ctx, input, kind, from)?.0))
+    }
+
     pub fn ast(
         &self,
         ctx: &Ctx,
@@ -381,6 +417,7 @@ impl Tool for DocConvert {
                 show_if: None,
             }],
             combines: false,
+            needs: None,
         }
     }
 
@@ -422,22 +459,11 @@ impl Tool for DocConvert {
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_else(|| "document".into());
 
-        let raw = std::fs::read(input)?;
-        let bytes = if is_text_source(kind) {
-            decode_text(&raw).into_bytes()
-        } else {
-            raw
-        };
         let in_name = format!("input.{}", ext_of(kind));
         (ctx.progress)(0.05);
 
         // 1. What the source contains.
-        let before_ast = if kind == FileKind::Text {
-            let api = self.ast(ctx, "markdown", "probe.md", Vec::new())?;
-            text_ast(&String::from_utf8_lossy(&bytes), &api["pandoc-api-version"])
-        } else {
-            self.ast(ctx, from, &in_name, bytes.clone())?
-        };
+        let (before_ast, bytes) = self.read_source(ctx, input, kind, from)?;
         let before = stats(&before_ast);
         (ctx.progress)(0.25);
 

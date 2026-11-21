@@ -208,6 +208,7 @@ fn tool_info(id: &str, category: Category, combines: bool) -> ToolInfo {
         platforms: vec![Platform::Desktop],
         options: vec![],
         combines,
+        needs: None,
     }
 }
 

@@ -30,6 +30,10 @@ impl AppState {
         registry.register(Arc::new(fo_core::pdfconv::tool::PdfConvert::new(
             pandoc.clone(),
         )));
+        // Desktop only; the registry hides it on Android.
+        registry.register(Arc::new(fo_core::libre::tool::OfficeConvert::new(
+            pandoc.clone(),
+        )));
         let registry = Arc::new(registry);
         let workers = std::thread::available_parallelism()
             .map(|n| n.get().saturating_sub(1))
@@ -85,6 +89,7 @@ mod tests {
             "doc.convert",
             "data.convert",
             "pdf.convert",
+            "office.convert",
         ] {
             assert!(s.registry.get(id).is_some(), "{id} missing");
         }

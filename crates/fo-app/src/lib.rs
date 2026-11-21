@@ -44,6 +44,7 @@ pub fn run() {
             commands::cancel_job,
             commands::open_path,
             commands::reveal_path,
+            commands::open_libreoffice_download,
             reader::reader_open,
             reader::reader_chapter,
             reader::reader_text,

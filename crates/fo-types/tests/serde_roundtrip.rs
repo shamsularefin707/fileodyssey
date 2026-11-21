@@ -110,6 +110,10 @@ fn option_spec_serde_roundtrip() {
             },
         ],
         combines: true,
+        needs: Some(Needs {
+            message: "Install LibreOffice to enable".into(),
+            url: "https://www.libreoffice.org/download/".into(),
+        }),
     };
     let json = serde_json::to_string(&tool).unwrap();
     assert_eq!(serde_json::from_str::<ToolInfo>(&json).unwrap(), tool);

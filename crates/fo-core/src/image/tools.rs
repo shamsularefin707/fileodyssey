@@ -46,6 +46,7 @@ impl Tool for ImagesToPdf {
                 show_if: None,
             }],
             combines: true,
+            needs: None,
         }
     }
 
@@ -278,6 +279,7 @@ impl Tool for ImageTool {
             platforms: vec![Platform::Desktop, Platform::Android],
             options: self.options(),
             combines: false,
+            needs: None,
         }
     }
 
