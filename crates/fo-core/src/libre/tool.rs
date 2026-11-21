@@ -164,12 +164,19 @@ fn recall(before: &[String], after: &[String]) -> f64 {
 }
 
 impl OfficeConvert {
-    /// Stats of a file by reading it with Pandoc.
+    /// Stats of a file by reading it with Pandoc. Pandoc gives each sheet of
+    /// a workbook a heading with its name, which isn't the sheet's content
+    /// (and isn't printed): those headings are left out.
     fn read(&self, ctx: &Ctx, path: &Path, ext: &str) -> Result<Stats, ToolError> {
         let from = pandoc_reader(ext)
             .ok_or_else(|| ToolError::Failed(format!("Can't read {ext} back")))?;
         let name = format!("input.{ext}");
-        let ast = self.doc.ast(ctx, from, &name, std::fs::read(path)?)?;
+        let mut ast = self.doc.ast(ctx, from, &name, std::fs::read(path)?)?;
+        if ext == "xlsx" {
+            if let Some(blocks) = ast["blocks"].as_array_mut() {
+                blocks.retain(|b| b["t"] != "Header");
+            }
+        }
         Ok(stats(&ast))
     }
 
@@ -295,17 +302,10 @@ impl Tool for OfficeConvert {
                 .map_err(ToolError::Failed)?
                 .extract(&out)
                 .map_err(ToolError::Failed)?;
-            let mut text = String::new();
-            for p in &pages {
-                for g in &p.glyphs {
-                    text.push_str(&g.text);
-                    if g.generated {
-                        text.push(' ');
-                    }
-                }
-                text.push('\n');
-            }
-            let words = normalise_words(&text);
+            // Words as the PDF reconstruction reads them (word spaces decided,
+            // marks that repeat a cluster's text dropped), in stream order.
+            let doc = crate::pdfconv::layout::reconstruct(&pages);
+            let words = normalise_words(&doc.stream_text);
             let images: u64 = pages.iter().map(|p| p.images.len() as u64).sum();
             let m = |name: &str, b: u64, a: u64| Metric {
                 name: name.into(),
