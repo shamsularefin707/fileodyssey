@@ -405,3 +405,33 @@ pub enum ScanKind {
     /// A scanned document: the files saved (PDF and/or page images).
     Document { files: Vec<std::path::PathBuf> },
 }
+
+/// The person's settings, kept in the app's config folder.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Settings {
+    /// Look for a new version when the app starts (the only network use).
+    pub check_updates: bool,
+    /// The version they said "Not now" to.
+    pub skipped: Option<String>,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            check_updates: true,
+            skipped: None,
+        }
+    }
+}
+
+/// A newer release, as the update check found it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UpdateInfo {
+    pub version: String,
+    /// Release notes, if any.
+    pub notes: String,
+    /// The app can download and install it itself (desktop); otherwise the
+    /// release page is opened (Android).
+    pub installable: bool,
+}

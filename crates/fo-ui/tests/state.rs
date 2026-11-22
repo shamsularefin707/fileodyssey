@@ -239,3 +239,30 @@ fn combine_candidates_needs_two_images_for_pdf() {
     let got = fo_ui::state::combine_candidates(&two, Category::Images);
     assert_eq!(got[0].1, vec!["/a.png".to_string(), "/c.jpg".to_string()]);
 }
+
+mod updates {
+    use fo_ui::state::{offer_update, parse_version};
+
+    #[test]
+    fn versions_compare_numerically() {
+        assert_eq!(parse_version("v1.0.10"), Some((1, 0, 10)));
+        assert_eq!(parse_version("1.2"), None);
+        assert_eq!(
+            parse_version("1.1.0-beta"),
+            None,
+            "pre-releases are never offered"
+        );
+        assert!(offer_update("1.0.10", "1.0.9", None));
+        assert!(offer_update("v1.1.0", "1.0.0", None));
+        assert!(!offer_update("1.0.0", "1.0.0", None));
+        assert!(!offer_update("0.9.9", "1.0.0", None));
+        assert!(!offer_update("garbage", "1.0.0", None));
+    }
+
+    #[test]
+    fn not_now_skips_only_that_version() {
+        assert!(!offer_update("1.0.1", "1.0.0", Some("1.0.1")));
+        assert!(!offer_update("v1.0.1", "1.0.0", Some("1.0.1")));
+        assert!(offer_update("1.0.2", "1.0.0", Some("1.0.1")));
+    }
+}

@@ -3,6 +3,7 @@ mod pandoc;
 mod reader;
 mod scan;
 mod state;
+mod update;
 
 use tauri::{DragDropEvent, Emitter, Manager, WindowEvent};
 
@@ -11,6 +12,8 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init());
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     // Camera scanning: Android only (see capabilities/android.json).
     #[cfg(target_os = "android")]
     let builder = builder
@@ -43,6 +46,12 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::platform,
+            update::get_settings,
+            update::set_settings,
+            update::app_version,
+            update::update_check,
+            update::update_install,
+            update::open_release_page,
             scan::scan_pages_dir,
             scan::scan_thumbnail,
             scan::scan_classify,

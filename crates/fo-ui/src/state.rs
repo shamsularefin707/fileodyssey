@@ -155,3 +155,21 @@ pub fn combine_candidates(
     out.retain(|(t, paths)| paths.len() >= min_inputs(t));
     out
 }
+
+/// "1.2.3" or "v1.2.3" as numbers; anything else (including pre-release
+/// tags like "1.3.0-beta") is None.
+pub fn parse_version(v: &str) -> Option<(u64, u64, u64)> {
+    let mut parts = v.trim().trim_start_matches('v').split('.');
+    let mut next = || parts.next()?.parse::<u64>().ok();
+    let version = (next()?, next()?, next()?);
+    parts.next().is_none().then_some(version)
+}
+
+/// Whether to offer `latest`: newer than `current`, a final release, and not
+/// the version the person said "Not now" to.
+pub fn offer_update(latest: &str, current: &str, skipped: Option<&str>) -> bool {
+    let (Some(l), Some(c)) = (parse_version(latest), parse_version(current)) else {
+        return false;
+    };
+    l > c && skipped.and_then(parse_version) != Some(l)
+}
