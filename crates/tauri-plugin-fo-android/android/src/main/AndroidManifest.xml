@@ -1,0 +1,4 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The ML Kit scanner brings its own camera UI through Play services;
+         this app needs no camera permission for it. -->
+</manifest>

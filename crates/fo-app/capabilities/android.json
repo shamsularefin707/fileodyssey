@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "android-scan",
+  "description": "Android: camera QR/barcode scanning and the document scanner, called from the Scan tab.",
+  "platforms": ["android"],
+  "windows": ["main"],
+  "permissions": ["barcode-scanner:default", "fo-android:default"]
+}

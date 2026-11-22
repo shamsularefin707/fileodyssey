@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/fo-app", "crates/fo-types", "crates/fo-core", "crates/fo-ui"]
+members = ["crates/fo-app", "crates/fo-types", "crates/fo-core", "crates/fo-ui", "crates/tauri-plugin-fo-android"]
 
 [workspace.package]
 version = "0.1.0"

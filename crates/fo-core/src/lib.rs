@@ -12,4 +12,5 @@ pub mod qr;
 pub mod reader;
 pub mod registry;
 pub mod runner;
+pub mod scan;
 pub mod tool;

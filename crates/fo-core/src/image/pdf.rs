@@ -20,6 +20,9 @@ pub enum PageSize {
     Image,
     A4,
     Letter,
+    /// A4 wide, as tall as the image's shape needs, no margin: for scanned
+    /// pages already cropped to the paper.
+    ScanA4Width,
 }
 
 const MM: f32 = 72.0 / 25.4;
@@ -30,6 +33,7 @@ impl PageSize {
             PageSize::Image => (w, h),
             PageSize::A4 => (210.0 * MM, 297.0 * MM),
             PageSize::Letter => (8.5 * 72.0, 11.0 * 72.0),
+            PageSize::ScanA4Width => (210.0 * MM, 210.0 * MM * h / w.max(1.0)),
         }
     }
 }
@@ -69,7 +73,7 @@ pub fn write_pdf(
         let (iw, ih) = (p.image.width() as f32, p.image.height() as f32);
         let (pw, ph) = size.dims(iw, ih);
         // Fit inside the page with 10 mm margins (none for image-sized pages).
-        let margin = if size == PageSize::Image {
+        let margin = if matches!(size, PageSize::Image | PageSize::ScanA4Width) {
             0.0
         } else {
             10.0 * MM

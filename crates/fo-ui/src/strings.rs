@@ -155,3 +155,60 @@ pub fn link_note(url: &str) -> String {
 pub fn zoom_label(z: f64) -> String {
     format!("{}%", (z * 100.0).round() as i64)
 }
+
+// Scan tab
+pub const SCAN_DOCUMENT: &str = "Scan a document";
+pub const SCAN_DOCUMENT_HINT: &str = "Pages are found, straightened and cleaned up for you.";
+pub const SCAN_CODE: &str = "Scan a QR code";
+pub const SCAN_CODE_HINT: &str = "QR codes and barcodes, with the camera.";
+pub const SCAN_IMAGE: &str = "Read a code from an image";
+pub const SCAN_IMAGE_HINT: &str = "A screenshot or photo with a code in it.";
+pub const SCAN_POINT: &str = "Point the camera at a code";
+pub const NEEDS_PLAY: &str =
+    "The document scanner needs Google Play services, which this phone doesn't have.";
+pub const NEEDS_CAMERA: &str = "Allow camera access to scan codes.";
+pub const OPEN_SETTINGS: &str = "Open settings";
+pub const NO_CODE_FOUND: &str = "No code found in that image.";
+pub const OPEN_LINK: &str = "Open link";
+pub const COPY: &str = "Copy";
+pub const COPY_PASSWORD: &str = "Copy password";
+pub const JOIN_NETWORK: &str = "Join network";
+pub const SAVE_CONTACT: &str = "Save contact";
+pub const NETWORK: &str = "Network";
+pub const PASSWORD: &str = "Password";
+pub const NO_PASSWORD: &str = "No password";
+pub const LINK_FIRST: &str = "Check the address before you open it.";
+pub const REVIEW_PAGES: &str = "Review pages";
+pub const MOVE_UP: &str = "Move up";
+pub const MOVE_DOWN: &str = "Move down";
+pub const SAVE_AS: &str = "Save as";
+pub const AS_PDF: &str = "PDF";
+pub const AS_IMAGES: &str = "Images (JPEG)";
+pub const SAVE: &str = "Save";
+pub const SCAN_MORE: &str = "Discard";
+pub const SAVED: &str = "Saved";
+pub const OPEN_IN_READER: &str = "Read it";
+pub const SEND_TO_CONVERT: &str = "Convert it";
+pub const HISTORY: &str = "Recent scans";
+pub const CLEAR_HISTORY: &str = "Clear history";
+pub const NO_HISTORY: &str = "Scans you make appear here. They stay on this phone.";
+pub const DELETE: &str = "Delete";
+pub const SHOW: &str = "Show";
+pub const WIFI_SETTINGS_OPENED: &str =
+    "Wi-Fi settings are open: pick the network and paste the password.";
+
+pub fn page_n(n: usize) -> String {
+    format!("Page {n}")
+}
+
+pub fn pages_n(n: usize) -> String {
+    if n == 1 {
+        "1 page".into()
+    } else {
+        format!("{n} pages")
+    }
+}
+
+pub fn contact_saved(path: &str) -> String {
+    format!("Saved the contact to {path}.")
+}

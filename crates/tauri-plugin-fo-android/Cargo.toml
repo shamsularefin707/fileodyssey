@@ -1,0 +1,15 @@
+[package]
+name = "tauri-plugin-fo-android"
+description = "FileOdyssey's Android-only calls: the ML Kit document scanner and adding a Wi-Fi network"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+links = "tauri-plugin-fo-android"
+
+[dependencies]
+tauri = "2"
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }

@@ -6,6 +6,8 @@ mod components;
 mod mock;
 #[cfg(target_arch = "wasm32")]
 mod mock_reader;
+#[cfg(target_arch = "wasm32")]
+mod mock_scan;
 
 #[cfg(target_arch = "wasm32")]
 fn main() {

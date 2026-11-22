@@ -341,3 +341,67 @@ pub struct JobEvent {
     pub input: String,
     pub status: JobStatus,
 }
+
+/// What a scanned QR code or barcode holds, so the app can offer the right
+/// actions for it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Payload {
+    /// An http(s) link: shown first, opened only when tapped.
+    Url {
+        url: String,
+    },
+    Wifi {
+        ssid: String,
+        password: String,
+        /// "WPA", "WEP", "SAE", "nopass" or "" when unstated.
+        security: String,
+        hidden: bool,
+    },
+    Contact {
+        name: String,
+        phones: Vec<String>,
+        emails: Vec<String>,
+        org: String,
+        /// A vCard to save, for the Contacts app.
+        vcard: String,
+    },
+    Email {
+        to: String,
+        subject: String,
+        body: String,
+    },
+    Phone {
+        number: String,
+    },
+    Sms {
+        number: String,
+        body: String,
+    },
+    Geo {
+        lat: f64,
+        lon: f64,
+    },
+    /// Anything else, including links that aren't safe to open.
+    Text {
+        text: String,
+    },
+}
+
+/// One entry in the scan history.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ScanRecord {
+    pub id: String,
+    /// When, in seconds since 1970 (UTC).
+    pub at: u64,
+    pub kind: ScanKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ScanKind {
+    /// A QR code or barcode: its content and format ("QR_CODE", "EAN_13"…).
+    Code { content: String, format: String },
+    /// A scanned document: the files saved (PDF and/or page images).
+    Document { files: Vec<std::path::PathBuf> },
+}

@@ -1,16 +1,24 @@
 mod commands;
 mod pandoc;
 mod reader;
+mod scan;
 mod state;
 
 use tauri::{DragDropEvent, Emitter, Manager, WindowEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_opener::init());
+    // Camera scanning: Android only (see capabilities/android.json).
+    #[cfg(target_os = "android")]
+    let builder = builder
+        .plugin(tauri_plugin_barcode_scanner::init())
+        .plugin(tauri_plugin_fo_android::init());
+    builder
         .manage(state::AppState::new())
+        .manage(scan::ScanStore::default())
         .register_asynchronous_uri_scheme_protocol("reader", reader::protocol)
         .setup(|app| {
             app.state::<state::AppState>()
@@ -35,6 +43,17 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::platform,
+            scan::scan_pages_dir,
+            scan::scan_thumbnail,
+            scan::scan_classify,
+            scan::scan_codes_in_image,
+            scan::scan_record_code,
+            scan::scan_save_document,
+            scan::scan_history,
+            scan::scan_delete,
+            scan::scan_clear,
+            scan::scan_open_url,
+            scan::scan_save_contact,
             commands::detect_files,
             commands::tools_for,
             commands::default_out_dir,
