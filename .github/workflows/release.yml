@@ -166,7 +166,8 @@ jobs:
           APKSIGNER=$(ls "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | tail -1)
           mkdir -p out
           for abi in arm64:arm64-v8a arm:armeabi-v7a x86_64:x86_64; do
-            src=$(find crates/fo-app/gen/android/app/build/outputs/apk -path "*${abi%%:*}*release*" -name '*.apk' | head -1)
+            # Tauri's per-ABI output: apk/<arm64|arm|x86_64>/release/*.apk
+            src=$(find "crates/fo-app/gen/android/app/build/outputs/apk/${abi%%:*}/release" -name '*.apk' 2>/dev/null | head -1)
             [ -n "$src" ] || { echo "No release APK for ${abi#*:}"; exit 1; }
             # Signed with the release key, and the plugins survived minification.
             "$APKSIGNER" verify --print-certs "$src" | tee cert.txt
