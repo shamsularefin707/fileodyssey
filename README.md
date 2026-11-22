@@ -4,8 +4,61 @@ An offline file and image toolkit for Windows, Linux and Android. Compress,
 read and convert documents and images on your own device. Your files never
 leave it.
 
-> Status: under active development. The first public release will be v1.0.0
-> on GitHub Releases.
+## What it does
+
+- **Convert documents**: Markdown, Word, OpenDocument, HTML, EPUB, RTF,
+  LaTeX, plain text and more, with a report of what was kept every time.
+- **PDF to Word, Markdown, HTML and more**: headings, lists, tables,
+  footnotes and images rebuilt; Word output keeps fonts and colours.
+- **With LibreOffice installed (desktop)**: old .doc/.xls/.ppt files, and
+  Office files to PDF with their exact layout.
+- **Images**: convert, compress, resize, read QR codes, combine into a PDF.
+- **Compress**: archives, PDFs and Office files.
+- **Read**: PDFs, e-books, Word documents and images.
+- **Android**: scan documents and QR codes with the camera.
+
+## Download
+
+Get the latest version from the
+[Releases page](https://github.com/shamsularefin707/fileodyssey/releases/latest).
+
+| You have | Download |
+|---|---|
+| Windows 10 or 11 | `…_x64-setup.exe` (or the `.msi` if you prefer) |
+| Ubuntu, Debian, Mint | `…_amd64.deb` |
+| Any other Linux | `…_amd64.AppImage` |
+| Android phone or tablet (most) | `…_android-arm64-v8a.apk` |
+| Older 32-bit Android | `…_android-armeabi-v7a.apk` |
+| Android emulator / Chromebook (Intel) | `…_android-x86_64.apk` |
+
+**Windows** shows a "Windows protected your PC" (SmartScreen) message,
+because the installer isn't code-signed (that costs money each year).
+Choose **More info → Run anyway**.
+
+**Linux AppImage**: make it executable (`chmod +x FileOdyssey_*.AppImage`)
+and run it. The `.deb` installs with `sudo apt install ./FileOdyssey_*.deb`.
+
+**Android**: open the APK and allow installing from your browser or file
+manager when asked. The document scanner needs Google Play services; QR
+scanning and everything else work without it.
+
+**LibreOffice** (optional, desktop): install it from
+[libreoffice.org](https://www.libreoffice.org/download/download-libreoffice/)
+to turn on old Office formats and exact-layout PDF output.
+
+**Checking a download**: each release has a `SHA256SUMS` file. On Linux,
+`sha256sum -c SHA256SUMS --ignore-missing`; on Windows,
+`Get-FileHash .\FileOdyssey_*-setup.exe` and compare. Android APKs are signed
+with the certificate whose SHA-256 is in
+[docs/android-signing-cert.txt](docs/android-signing-cert.txt).
+
+## Privacy and updates
+
+FileOdyssey works offline. The only time it uses the internet is to look
+for a new version when it starts, and you can turn that off under
+**About FileOdyssey**. On Windows and Linux an update installs when you
+choose "Update and restart"; on Android it opens the release page to
+download.
 
 ## Build from source
 
@@ -30,6 +83,7 @@ cd crates/fo-app && cargo tauri dev   # run the desktop app
 ```
 
 Android builds need the Android SDK + NDK; see `.github/workflows/ci.yml`.
+How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Third-party components
 
@@ -40,6 +94,11 @@ Android builds need the Android SDK + NDK; see `.github/workflows/ci.yml`.
   (`crates/fo-ui/pandoc-worker/`)
 - Fonts: Young Serif, Atkinson Hyperlegible Next, Literata — SIL Open Font
   License 1.1 (`crates/fo-ui/assets/fonts/`)
+- Android only: Google ML Kit Document Scanner and Google Play services
+  (Google's terms; allowed by the licence's additional permission) and the
+  Tauri barcode-scanner plugin (MIT / Apache-2.0, using CameraX and ML Kit
+  barcode scanning)
+- LibreOffice is not bundled; FileOdyssey uses it only if you install it
 
 ## Licence
 

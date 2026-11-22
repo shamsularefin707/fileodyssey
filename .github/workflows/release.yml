@@ -1,0 +1,254 @@
+name: Release
+
+# A version tag (v1.2.3, matching Cargo.toml) builds everything into a draft
+# release and publishes it once every file is there. Running this workflow
+# by hand does the same but leaves the draft unpublished: a trial run.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  draft:
+    name: Draft release
+    runs-on: ubuntu-24.04
+    outputs:
+      id: ${{ steps.draft.outputs.id }}
+      tag: ${{ steps.draft.outputs.tag }}
+      version: ${{ steps.draft.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check secrets
+        env:
+          A: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          B: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          C: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          D: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          for v in A B C D; do
+            [ -n "${!v}" ] || { echo "A signing secret is missing (see docs/RELEASING.md)"; exit 1; }
+          done
+      - name: Create the draft
+        id: draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          TAG="v$VERSION"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "$TAG" ]; then
+            echo "Tag $GITHUB_REF_NAME doesn't match the version in Cargo.toml ($VERSION)"; exit 1
+          fi
+          grep -q "\"version\": \"$VERSION\"" crates/fo-app/tauri.conf.json \
+            || { echo "tauri.conf.json's version isn't $VERSION"; exit 1; }
+          NOTES="docs/release-notes/$TAG.md"
+          [ -f "$NOTES" ] || { echo "Write $NOTES first"; exit 1; }
+          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG is already published"; exit 1
+          fi
+          ID=$(gh api "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$TAG" -f target_commitish="$GITHUB_SHA" \
+                 -f name="FileOdyssey $VERSION" -F draft=true -F prerelease=false \
+                 -f body="$(cat "$NOTES")" --jq .id)
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  desktop:
+    name: Desktop (${{ matrix.os }})
+    needs: draft
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [windows-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev libssl-dev patchelf
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: trunk,tauri-cli
+      - name: PDFium and Pandoc (Linux)
+        if: runner.os == 'Linux'
+        run: scripts/fetch-pdfium.sh linux-x64 && scripts/fetch-pandoc.sh
+      - name: PDFium and Pandoc (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/fetch-pdfium.ps1; ./scripts/fetch-pandoc.ps1
+      - name: Build and upload
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: crates/fo-app
+          tauriScript: cargo tauri
+          args: '--config {"bundle":{"createUpdaterArtifacts":true}}'
+          releaseId: ${{ needs.draft.outputs.id }}
+          # latest.json is written once, by the publish job.
+          includeUpdaterJson: false
+
+  android:
+    name: Android (signed APKs)
+    needs: draft
+    runs-on: ubuntu-24.04
+    env:
+      NDK_VERSION: 27.2.12479018
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools build-tools;35.0.0
+          log-accepted-android-sdk-licenses: false
+      - name: Install NDK
+        run: |
+          sdkmanager --install "ndk;${NDK_VERSION}"
+          echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown,aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: trunk,tauri-cli
+      - name: Generate the Android project, with release signing
+        working-directory: crates/fo-app
+        run: |
+          cargo tauri android init --ci
+          python3 ../../scripts/android-release-signing.py gen/android/app/build.gradle.kts
+      - name: PDFium for each ABI, and Pandoc
+        run: |
+          scripts/fetch-pandoc.sh
+          scripts/fetch-pdfium.sh android-arm64 android-arm android-x64
+          J=crates/fo-app/gen/android/app/src/main/jniLibs
+          for pair in arm64:arm64-v8a arm:armeabi-v7a x64:x86_64; do
+            mkdir -p "$J/${pair#*:}"
+            cp "pdfium/android-${pair%%:*}/lib/libpdfium.so" "$J/${pair#*:}/"
+          done
+      - name: Build signed APKs
+        working-directory: crates/fo-app
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.p12"
+          echo "$KEYSTORE_B64" | base64 -d > "$ANDROID_KEYSTORE_PATH"
+          cargo tauri android build --apk --split-per-abi --target aarch64 --target armv7 --target x86_64
+          rm -f "$ANDROID_KEYSTORE_PATH"
+      - name: Check, name and upload the APKs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.draft.outputs.version }}
+          ID: ${{ needs.draft.outputs.id }}
+        run: |
+          APKSIGNER=$(ls "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | tail -1)
+          mkdir -p out
+          for abi in arm64:arm64-v8a arm:armeabi-v7a x86_64:x86_64; do
+            src=$(find crates/fo-app/gen/android/app/build/outputs/apk -path "*${abi%%:*}*release*" -name '*.apk' | head -1)
+            [ -n "$src" ] || { echo "No release APK for ${abi#*:}"; exit 1; }
+            # Signed with the release key, and the plugins survived minification.
+            "$APKSIGNER" verify --print-certs "$src" | tee cert.txt
+            grep -qi "$(cat docs/android-signing-cert.txt)" cert.txt || { echo "Not signed with the release key"; exit 1; }
+            for c in app/fileodyssey/android/FoAndroidPlugin app/tauri/barcodescanner/BarcodeScannerPlugin; do
+              unzip -p "$src" 'classes*.dex' | grep -aq "$c" || { echo "Missing after minification: $c"; exit 1; }
+            done
+            cp "$src" "out/FileOdyssey_${VERSION}_android-${abi#*:}.apk"
+          done
+          for f in out/*.apk; do
+            gh api --method POST -H "Content-Type: application/vnd.android.package-archive" \
+              "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$ID/assets?name=$(basename "$f")" \
+              --input "$f" --jq .name
+          done
+
+  publish:
+    name: Checksums, update manifest, publish
+    needs: [draft, desktop, android]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download the release files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ID: ${{ needs.draft.outputs.id }}
+        run: |
+          mkdir assets && cd assets
+          gh api "repos/$GITHUB_REPOSITORY/releases/$ID/assets" --paginate --jq '.[] | "\(.id) \(.name)"' |
+          while read -r aid name; do
+            gh api -H "Accept: application/octet-stream" "repos/$GITHUB_REPOSITORY/releases/assets/$aid" > "$name"
+          done
+          ls -la
+      - name: Write SHA256SUMS and latest.json
+        env:
+          TAG: ${{ needs.draft.outputs.tag }}
+          VERSION: ${{ needs.draft.outputs.version }}
+        working-directory: assets
+        run: |
+          sha256sum $(ls | grep -v '\.sig$' | grep -v '^latest.json$') > SHA256SUMS
+          cat SHA256SUMS
+          python3 - <<'PY'
+          import json, os, datetime
+          tag, version = os.environ["TAG"], os.environ["VERSION"]
+          base = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{tag}/"
+          files = os.listdir(".")
+          def entry(suffix):
+              names = [f for f in files if f.endswith(suffix) and f + ".sig" in files]
+              if len(names) != 1:
+                  raise SystemExit(f"Expected one signed *{suffix}, found {names}")
+              n = names[0]
+              return {"signature": open(n + ".sig").read().strip(), "url": base + n}
+          platforms = {
+              "windows-x86_64": entry("-setup.exe"),
+              "windows-x86_64-nsis": entry("-setup.exe"),
+              "windows-x86_64-msi": entry(".msi"),
+              "linux-x86_64": entry(".AppImage"),
+              "linux-x86_64-appimage": entry(".AppImage"),
+          }
+          if any(f.endswith(".deb.sig") for f in files):
+              platforms["linux-x86_64-deb"] = entry(".deb")
+          manifest = {
+              "version": version,
+              "notes": f"FileOdyssey {version}: see the release page for what's new.",
+              "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "platforms": platforms,
+          }
+          json.dump(manifest, open("latest.json", "w"), indent=2)
+          print(json.dumps(manifest, indent=2)[:2000])
+          PY
+      - name: Upload them
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ID: ${{ needs.draft.outputs.id }}
+        working-directory: assets
+        run: |
+          for f in SHA256SUMS latest.json; do
+            gh api --method POST -H "Content-Type: application/octet-stream" \
+              "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$ID/assets?name=$f" --input "$f" --jq .name
+          done
+      - name: Publish (version tags only)
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ID: ${{ needs.draft.outputs.id }}
+        run: |
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$ID" -F draft=false -f make_latest=true --jq .html_url
