@@ -9,7 +9,12 @@ use std::sync::Arc;
 
 /// Claims `stem.ext`, else `stem (2).ext`, … in `dir` (create_new, so two
 /// saves can't take the same name) and writes `bytes` there.
-fn write_new(dir: &Path, stem: &str, ext: &str, bytes: &[u8]) -> Result<PathBuf, String> {
+pub(crate) fn write_new(
+    dir: &Path,
+    stem: &str,
+    ext: &str,
+    bytes: &[u8],
+) -> Result<PathBuf, String> {
     for n in 1.. {
         let name = if n == 1 {
             format!("{stem}.{ext}")
