@@ -68,6 +68,7 @@ export function start_pandoc_host() {
   });
 }
 export function copy_text(t) { if (navigator.clipboard) navigator.clipboard.writeText(t).catch(() => {}); }
+export function camera_mode(on) { document.documentElement.classList.toggle("camera-on", on); }
 "#)]
 extern "C" {
     fn has_tauri() -> bool;
@@ -78,6 +79,8 @@ extern "C" {
     /// Stretches each transparent text span to the width PDFium measured.
     pub fn fit_spans(root: &web_sys::Element);
     pub fn copy_text(text: &str);
+    /// Makes the page see-through so the camera preview behind it shows.
+    pub fn camera_mode(on: bool);
     /// Runs Pandoc conversions for the backend in a Web Worker (app only).
     pub fn start_pandoc_host();
 }

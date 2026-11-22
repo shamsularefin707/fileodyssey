@@ -92,3 +92,19 @@ pub fn save_scan(
     }
     Ok(out)
 }
+
+/// A page's thumbnail, at most `max` pixels on its longer side, as a JPEG
+/// `data:` URL the webview can show.
+pub fn thumbnail(path: &Path, max: u32) -> Result<String, String> {
+    use base64::Engine;
+    let img = image::open(path).map_err(|e| format!("Couldn't read the page: {e}"))?;
+    let small = img.thumbnail(max, max).to_rgb8();
+    let mut out = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 80)
+        .encode_image(&small)
+        .map_err(|e| e.to_string())?;
+    Ok(format!(
+        "data:image/jpeg;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(out)
+    ))
+}

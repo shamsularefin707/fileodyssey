@@ -75,3 +75,17 @@ fn nothing_to_save_is_an_error() {
     assert!(save_scan(&p, &[3], d.path(), "Scan", true, false).is_err());
     assert!(save_scan(&p, &[0], d.path(), "Scan", false, false).is_err());
 }
+
+#[test]
+fn thumbnails_are_small_jpeg_data_urls() {
+    let (d, p) = pages();
+    let url = fo_core::scan::document::thumbnail(&p[0], 120).unwrap();
+    assert!(url.starts_with("data:image/jpeg;base64,"));
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(&url[23..])
+        .unwrap();
+    let img = image::load_from_memory(&bytes).unwrap();
+    assert_eq!((img.width().max(img.height())), 120);
+    assert!(fo_core::scan::document::thumbnail(&d.path().join("missing.jpg"), 120).is_err());
+}

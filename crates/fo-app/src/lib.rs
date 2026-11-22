@@ -44,6 +44,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::platform,
             scan::scan_pages_dir,
+            scan::scan_thumbnail,
             scan::scan_classify,
             scan::scan_codes_in_image,
             scan::scan_record_code,

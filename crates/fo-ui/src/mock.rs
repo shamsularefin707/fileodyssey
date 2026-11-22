@@ -515,6 +515,9 @@ pub async fn invoke(cmd: &str, args: JsValue) -> Result<JsValue, String> {
     if let Some(r) = crate::mock_reader::invoke(cmd, &args) {
         return r;
     }
+    if let Some(r) = crate::mock_scan::invoke(cmd, &args).await {
+        return r;
+    }
     Ok(match cmd {
         "platform" => to_js(&match query("platform").as_deref() {
             Some("android") => Platform::Android,

@@ -51,6 +51,25 @@ pub fn scan_pages_dir(app: AppHandle, store: State<'_, ScanStore>) -> Result<Str
     })
 }
 
+/// A scanned page's thumbnail for the review screen. Only pages in the
+/// history's own folder, so the webview can't read other files this way.
+#[tauri::command]
+pub async fn scan_thumbnail(
+    app: AppHandle,
+    store: State<'_, ScanStore>,
+    path: String,
+) -> Result<String, String> {
+    let own = with_history(&app, &store, |h| Ok(h.files_dir()))?;
+    let p = Path::new(&path).canonicalize().map_err(|e| e.to_string())?;
+    let own = own.canonicalize().map_err(|e| e.to_string())?;
+    if !p.starts_with(&own) {
+        return Err("Not a scanned page".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || scan::document::thumbnail(&p, 320))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub fn scan_classify(content: String) -> Payload {
     scan::payload::classify(&content)

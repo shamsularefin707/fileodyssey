@@ -5,6 +5,7 @@ mod pond;
 mod rail;
 mod reader;
 mod report;
+mod scan;
 
 use crate::bridge::{invoke, is_preview, listen};
 use fo_types::*;
@@ -211,6 +212,10 @@ pub fn App() -> impl IntoView {
                             <h1>{move || fo_ui::strings::tab_label(ctx.tab.get())}</h1>
                             <p>{move || fo_ui::strings::tab_intro(ctx.tab.get())}</p>
                         </header>
+                        <Show when=move || ctx.tab.get() == Category::Scan>
+                            <scan::Scan/>
+                        </Show>
+                        <Show when=move || ctx.tab.get() != Category::Scan>
                         <pond::Pond/>
                         <Show when=move || ctx.tab.get() == Category::Read>
                             <Show when=move || ctx.read_busy.get()>
@@ -223,6 +228,7 @@ pub fn App() -> impl IntoView {
                         <file_list::FileList/>
                         <combine::CombineBar/>
                         <jobs::Jobs/>
+                        </Show>
                     </main>
                 }
             >
