@@ -133,6 +133,13 @@ jobs:
       - name: Build APK
         working-directory: crates/fo-app
         run: cargo tauri android build --debug --apk
+      - name: Scanners are in the APK
+        run: |
+          APK=$(find crates/fo-app/gen/android/app/build/outputs/apk -name '*.apk' | head -1)
+          for c in app/fileodyssey/android/FoAndroidPlugin app/tauri/barcodescanner/BarcodeScannerPlugin com/google/mlkit/vision/documentscanner/GmsDocumentScanning; do
+            unzip -p "$APK" 'classes*.dex' | grep -aq "$c" || { echo "Missing from the APK: $c"; exit 1; }
+          done
+          echo "Both scanner plugins and ML Kit's document scanner are packaged."
       - uses: actions/upload-artifact@v4
         with:
           name: fileodyssey-android
