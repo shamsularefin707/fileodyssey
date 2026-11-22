@@ -387,3 +387,21 @@ pub enum Payload {
         text: String,
     },
 }
+
+/// One entry in the scan history.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ScanRecord {
+    pub id: String,
+    /// When, in seconds since 1970 (UTC).
+    pub at: u64,
+    pub kind: ScanKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ScanKind {
+    /// A QR code or barcode: its content and format ("QR_CODE", "EAN_13"…).
+    Code { content: String, format: String },
+    /// A scanned document: the files saved (PDF and/or page images).
+    Document { files: Vec<std::path::PathBuf> },
+}
