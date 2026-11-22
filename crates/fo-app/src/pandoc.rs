@@ -187,8 +187,9 @@ mod tests {
         // Bypass the event emit (no app in tests) by parking directly.
         let id = 7;
         let (tx, rx) = channel();
-        p.frames.lock().unwrap().insert(id, encode_request(&req()));
+        // Waiter first: the real code only tells the UI after both are in.
         p.waiters.lock().unwrap().insert(id, tx);
+        p.frames.lock().unwrap().insert(id, encode_request(&req()));
         let r = rx.recv_timeout(Duration::from_secs(5)).unwrap().unwrap();
         assert_eq!(r.stdout, b"<h1>A</h1>");
         ui.join().unwrap();

@@ -6,6 +6,7 @@ mod rail;
 mod reader;
 mod report;
 mod scan;
+mod update;
 
 use crate::bridge::{invoke, is_preview, listen};
 use fo_types::*;
@@ -172,6 +173,7 @@ pub fn App() -> impl IntoView {
         read_busy: RwSignal::new(false),
     };
     provide_context(ctx);
+    update::start(ctx);
     let reading_now = move || ctx.tab.get() == Category::Read && ctx.reading.get().is_some();
 
     crate::bridge::start_pandoc_host();
@@ -208,6 +210,7 @@ pub fn App() -> impl IntoView {
                 when=reading_now
                 fallback=move || view! {
                     <main class="workbench" id="main">
+                        <update::Banner/>
                         <header class="intro">
                             <h1>{move || fo_ui::strings::tab_label(ctx.tab.get())}</h1>
                             <p>{move || fo_ui::strings::tab_intro(ctx.tab.get())}</p>
@@ -229,6 +232,7 @@ pub fn App() -> impl IntoView {
                         <combine::CombineBar/>
                         <jobs::Jobs/>
                         </Show>
+                        <update::About/>
                     </main>
                 }
             >

@@ -192,3 +192,20 @@
   .options { padding-left: 12px; }
   .opt input[type="range"] { width: 120px; }
 }
+
+/* Update banner: a slim band above the heading. */
+.update-banner {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px 20px;
+  margin: -20px 0 24px; padding: 12px 18px;
+  background: color-mix(in srgb, var(--river) 16%, var(--lichen));
+  border-radius: 22px 26px 20px 28px;
+}
+.update-banner span { margin-right: auto; }
+
+/* About: a quiet fold at the end of the page. */
+.about { margin-top: 56px; padding-top: 14px; border-top: 1px dashed var(--stone); max-width: 60ch; color: var(--pine-soft); }
+.about summary { cursor: pointer; font-size: var(--t-xs); }
+.about[open] summary { margin-bottom: 10px; color: var(--pine); }
+.about p { margin: 8px 0; font-size: var(--t-xs); }
+.about-toggle { display: flex; gap: 10px; align-items: flex-start; font-size: var(--t-xs); color: var(--pine); }
+.about-toggle input { accent-color: var(--river); width: 18px; height: 18px; margin-top: 1px; }

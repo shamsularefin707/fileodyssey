@@ -518,6 +518,9 @@ pub async fn invoke(cmd: &str, args: JsValue) -> Result<JsValue, String> {
     if let Some(r) = crate::mock_scan::invoke(cmd, &args).await {
         return r;
     }
+    if let Some(r) = update_invoke(cmd, &args) {
+        return r;
+    }
     Ok(match cmd {
         "platform" => to_js(&match query("platform").as_deref() {
             Some("android") => Platform::Android,
@@ -721,4 +724,58 @@ fn simulate(job: String, input: String, target: String, step: u32) {
         }
     });
     let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), 180);
+}
+
+thread_local! {
+    static SETTINGS: std::cell::RefCell<fo_types::Settings> = std::cell::RefCell::new(fo_types::Settings::default());
+}
+
+/// Preview stand-in for GitHub's latest release (`?update=1` offers 1.0.1).
+pub fn preview_latest() -> Option<String> {
+    match query("update").as_deref() {
+        Some("1") => Some(r#"{"tag":"v1.0.1","notes":"Fixes"}"#.into()),
+        Some("offline") => None,
+        _ => Some(r#"{"tag":"v1.0.0","notes":""}"#.into()),
+    }
+}
+
+/// Preview stand-ins for settings and the updater. Test hooks:
+/// `window.__fo_installed`, `window.__fo_release_page`, `window.__fo_settings`.
+pub fn update_invoke(cmd: &str, args: &JsValue) -> Option<Result<JsValue, String>> {
+    let hook = |k: &str, v: &str| {
+        if let Some(w) = web_sys::window() {
+            let _ = js_sys::Reflect::set(&w, &JsValue::from_str(k), &JsValue::from_str(v));
+        }
+    };
+    Some(Ok(match cmd {
+        "app_version" => to_js(&"1.0.0"),
+        "get_settings" => to_js(&SETTINGS.with(|s| s.borrow().clone())),
+        "set_settings" => {
+            let s: fo_types::Settings = arg(args, "settings").unwrap_or_default();
+            hook(
+                "__fo_settings",
+                &serde_json::to_string(&s).unwrap_or_default(),
+            );
+            SETTINGS.with(|c| *c.borrow_mut() = s);
+            JsValue::NULL
+        }
+        "update_check" => match query("update").as_deref() {
+            Some("1") => to_js(&Some(fo_types::UpdateInfo {
+                version: "1.0.1".into(),
+                notes: "Fixes".into(),
+                installable: true,
+            })),
+            Some("offline") => return Some(Err("offline".into())),
+            _ => to_js(&None::<fo_types::UpdateInfo>),
+        },
+        "update_install" => {
+            hook("__fo_installed", "1");
+            JsValue::NULL
+        }
+        "open_release_page" => {
+            hook("__fo_release_page", "1");
+            JsValue::NULL
+        }
+        _ => return None,
+    }))
 }

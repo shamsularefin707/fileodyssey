@@ -212,3 +212,24 @@ pub fn pages_n(n: usize) -> String {
 pub fn contact_saved(path: &str) -> String {
     format!("Saved the contact to {path}.")
 }
+
+// Updates and About
+pub const ABOUT: &str = "About FileOdyssey";
+pub const VERSION: &str = "Version";
+pub const CHECK_AT_START: &str = "Check for a new version when the app starts";
+pub const CHECK_AT_START_NOTE: &str = "This is the only time FileOdyssey uses the internet.";
+pub const CHECK_NOW: &str = "Check now";
+pub const CHECKING: &str = "Checking…";
+pub const UP_TO_DATE: &str = "You have the latest version.";
+pub const CHECK_FAILED: &str = "Couldn't reach GitHub to check. Try again when you're online.";
+pub const UPDATE_RESTART: &str = "Update and restart";
+pub const UPDATING: &str = "Downloading the update…";
+pub const DOWNLOAD: &str = "Download";
+pub const NOT_NOW: &str = "Not now";
+pub const WHATS_NEW: &str = "What's new";
+pub const LICENCE_LINE: &str =
+    "Free software under the GNU GPL v3. Your files never leave this device.";
+
+pub fn update_available(v: &str) -> String {
+    format!("FileOdyssey {} is available.", v.trim_start_matches('v'))
+}

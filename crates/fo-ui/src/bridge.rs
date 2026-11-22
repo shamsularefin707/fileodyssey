@@ -69,6 +69,16 @@ export function start_pandoc_host() {
 }
 export function copy_text(t) { if (navigator.clipboard) navigator.clipboard.writeText(t).catch(() => {}); }
 export function camera_mode(on) { document.documentElement.classList.toggle("camera-on", on); }
+export async function latest_release() {
+  try {
+    const r = await fetch("https://api.github.com/repos/shamsularefin707/fileodyssey/releases/latest",
+      { headers: { Accept: "application/vnd.github+json" } });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (j.draft || j.prerelease) return null;
+    return JSON.stringify({ tag: j.tag_name || "", notes: j.body || "" });
+  } catch (e) { return null; }
+}
 "#)]
 extern "C" {
     fn has_tauri() -> bool;
@@ -81,6 +91,9 @@ extern "C" {
     pub fn copy_text(text: &str);
     /// Makes the page see-through so the camera preview behind it shows.
     pub fn camera_mode(on: bool);
+    /// The latest published release from GitHub as JSON `{tag, notes}`, or
+    /// null when offline or unreachable (Android's update check).
+    pub fn latest_release() -> js_sys::Promise;
     /// Runs Pandoc conversions for the backend in a Web Worker (app only).
     pub fn start_pandoc_host();
 }
